@@ -1,11 +1,11 @@
 <script lang="ts">
+    import { LoadVideos, SearchVideos, type Video } from '$lib/api/Files'
     import Header from '$lib/components/Header.svelte'
     import StatBlocks from '$lib/components/StatBlocks.svelte'
     import VideoList from '$lib/components/VideoList.svelte'
     import { stats, videos } from '$lib/stores/VideoStore'
     import { onDestroy, onMount } from 'svelte'
     import { SaveToCloud } from '../editor/Logic'
-    import { LoadVideos, searchFiles, type Video } from './dashboard'
 
     const { data } = $props()
 
@@ -48,7 +48,7 @@
         const search = e.target.value
 
         timeout = setTimeout(async () => {
-            videos.set(await searchFiles(search, perPage))
+            videos.set(await SearchVideos(search, parseInt(perPage)))
         }, 300)
     }
 
@@ -104,7 +104,7 @@
         page++
 
         try {
-                const newVideos = await LoadVideos(page)
+                const newVideos = await LoadVideos({ page: 0, limit: parseInt(perPage) })
                 videos.set([...$videos, ...newVideos])
         } catch (error) {
                 err = error

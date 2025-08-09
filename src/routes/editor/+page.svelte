@@ -1,10 +1,10 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
+    import { ValidateToken } from '$lib/api/Auth'
     import Header from '$lib/components/Header.svelte'
     import VideoPlayer from '$lib/components/VideoPlayer.svelte'
     import VideoUpload from '$lib/components/VideoUpload.svelte'
     import { currentTime } from '$lib/stores/VideoStore'
-    import { ValidateToken } from '$lib/utils/Auth'
     import { getCookie } from '$lib/utils/Cookies'
     import { onMount } from 'svelte'
     import RangeSlider from 'svelte-range-slider-pips'

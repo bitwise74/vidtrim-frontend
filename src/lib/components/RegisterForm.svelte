@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Register } from '$lib/utils/Auth';
-    import '../../app.css';
+    import { Register } from '$lib/api/Auth'
+    import '../../app.css'
 
     let showPassword = $state(false);
     let showConfirmPassword = $state(false);

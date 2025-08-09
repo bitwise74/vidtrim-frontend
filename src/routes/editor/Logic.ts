@@ -1,7 +1,7 @@
 import { goto } from '$app/navigation'
 import { PUBLIC_BASE_URL } from '$env/static/public'
+import type { Video } from '$lib/api/Files'
 import { get, writable } from 'svelte/store'
-import type { Video } from '../dashboard/dashboard'
 
 export interface ProcessOptions {
         file: File

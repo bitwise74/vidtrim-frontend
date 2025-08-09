@@ -1,6 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
-    import { Login } from '$lib/utils/Auth'
+    import { Login } from '$lib/api/Auth'
     import { writable } from 'svelte/store'
 
     const showPassword = writable(false);

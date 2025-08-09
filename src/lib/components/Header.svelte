@@ -1,6 +1,6 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
-    import { ValidateToken } from '$lib/utils/Auth'
+    import { ValidateToken } from '$lib/api/Auth'
     import { getCookie } from '$lib/utils/Cookies'
     import { onMount } from 'svelte'
 

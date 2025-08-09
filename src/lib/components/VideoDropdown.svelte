@@ -1,25 +1,10 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
     import { PUBLIC_BASE_URL } from '$env/static/public'
+    import { DeleteVideo } from '$lib/api/Files'
     import { currentVideoURL, stats, videos } from '$lib/stores/VideoStore'
-    import type { Stats } from '../../routes/dashboard/dashboard'
 
     const { videoID } = $props()
-
-    export async function deleteVideo(): Promise<Stats> {
-        const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/${videoID}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        })
-        
-        const body = await resp.json()
-
-        if (resp.status === 200) {
-            return body
-        }
-
-        throw new Error(body.error)
-    }
 
     async function handleVideoAction(action: string) {
         const video = $videos.find((v) => v.id === videoID)
@@ -43,7 +28,7 @@
                 navigator.clipboard.writeText(`${PUBLIC_BASE_URL}/files/${videoID}`)
                 break
             case 'delete':
-                const resp = await deleteVideo()
+                const resp = await DeleteVideo(videoID)
 
                 videos.set($videos.filter(v => v.id != videoID))
                 stats.set(resp)
