@@ -16,7 +16,8 @@ export async function Login(form: AuthForm) {
                 body: JSON.stringify(form),
                 headers: {
                         "Content-Type": "application/json",
-                }
+                },
+                credentials: "include"
         })
 
         if (resp.status === 200) return

@@ -11,7 +11,7 @@ export type UserStats = {
 
 export interface InitialData {
         Videos: Video[]
-        Stats: UserStats[]
+        Stats: UserStats
 }
 
 export async function LoadInitalData(): Promise<InitialData> {
@@ -20,9 +20,11 @@ export async function LoadInitalData(): Promise<InitialData> {
                 credentials: "include"
         })
 
-        const body = await resp.json()      
+        const body = await resp.json()     
+        
+        console.log(resp)
 
         // Only possible codes are 200 and 500
-        if (resp.status != 200) throw new Error(body.error)
+        if (resp.status !== 200) throw new Error(body.error)
         return body
 }

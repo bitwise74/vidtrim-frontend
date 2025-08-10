@@ -104,7 +104,7 @@
         page++
 
         try {
-                const newVideos = await LoadVideos({ page: 0, limit: parseInt(perPage) })
+                const newVideos = await LoadVideos({ page: page, limit: 10 })
                 videos.set([...$videos, ...newVideos])
         } catch (error) {
                 err = error

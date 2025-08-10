@@ -23,11 +23,14 @@ export async function LoadVideos(opts: LoadVideoOpts): Promise<Video[]> {
                 throw new Error("Page can't be smaller than 0")
         }
 
-        if (opts.limit > 1 || opts.limit < 250) {
+        if (opts.limit < 1 || opts.limit > 250) {
                 throw new Error("Limit must be between 1-250")
         }
 
-        const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/bulk?limit=${opts.limit}&page=${opts.page}`)
+        const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/bulk?limit=${opts.limit}&page=${opts.page}`, {
+                method: "GET",
+                credentials: "include"
+        })
 
         const body = await resp.json()
 
