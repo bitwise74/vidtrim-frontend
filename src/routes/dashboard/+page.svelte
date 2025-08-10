@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { PUBLIC_BASE_URL } from '$env/static/public'
     import { LoadVideos, SearchVideos, type Video } from '$lib/api/Files'
     import Header from '$lib/components/Header.svelte'
     import StatBlocks from '$lib/components/StatBlocks.svelte'
@@ -6,11 +7,6 @@
     import { stats, videos } from '$lib/stores/VideoStore'
     import { onDestroy, onMount } from 'svelte'
     import { SaveToCloud } from '../editor/Logic'
-
-    const { data } = $props()
-
-    videos.set(data.Videos)
-    stats.set(data.Stats)
 
     let err: Error | null = $state(null)
     let page = 0
@@ -21,22 +17,40 @@
     let dropOverlay: HTMLElement | null
     let timeout: number | undefined
     let sentinel: Element
+
     onMount(() => {
         dropOverlay = document.getElementById('dropOverlay')
         window.addEventListener('dragenter', showOverlay)
         window.addEventListener('dragend', hideOverlay)
 
-         const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        loadModeContent();
-      }
-    });
+        fetch(`${PUBLIC_BASE_URL}/api/users`, {
+            method: 'GET',
+            credentials: 'include'
+        })
+            .then((resp) => resp.json())
+            .then((data) => {
+                videos.set(data.videos)
+                stats.set(data.stats)
+            })
+            .catch((error) => {
+                err = error
+            })
 
-    if (sentinel) {
-      observer.observe(sentinel);
-    }
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                loadModeContent()
+            }
+        })
 
-    return () => observer.disconnect();
+        if (sentinel) {
+            observer.observe(sentinel)
+        }
+
+        return () => {
+            observer.disconnect()
+            window.removeEventListener('dragenter', showOverlay)
+            window.removeEventListener('dragend', hideOverlay)
+        }
     })
 
     onDestroy(() => {
@@ -104,16 +118,15 @@
         page++
 
         try {
-                const newVideos = await LoadVideos({ page: page, limit: 10 })
-                videos.set([...$videos, ...newVideos])
+            const newVideos = await LoadVideos({ page: page, limit: 10 })
+            videos.set([...$videos, ...newVideos])
         } catch (error) {
-                err = error
-                window.scrollTo(0, 0)
+            err = error
+            window.scrollTo(0, 0)
         } finally {
-                loading = false
+            loading = false
         }
     }
-
 </script>
 
 <svelte:head>
@@ -173,7 +186,11 @@
                     </select>
                 </div>
                 <div class="col-lg-1 col-md-2 col-sm-6">
-                    <select class="form-select" bind:value={perPage} disabled placeholder="Results per page">
+                    <select
+                        class="form-select"
+                        bind:value={perPage}
+                        disabled
+                        placeholder="Results per page">
                         <option value="10" selected>10</option>
                         <option value="20">20</option>
                         <option value="50">50</option>

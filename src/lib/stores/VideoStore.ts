@@ -7,4 +7,4 @@ export const currentTime = writable(0)
 
 export const currentVideoURL = writable('')
 export const videos = writable<Video[]>([])
-export const stats = writable<UserStats>()
+export const stats = writable<UserStats>({} as UserStats)
