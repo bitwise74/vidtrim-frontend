@@ -41,8 +41,6 @@
         if (getCookie('logged_in') == '1') {
             const valid = await ValidateToken()
 
-            console.log(valid)
-
             if (!valid) {
                 goto('/login')
             }

@@ -25,7 +25,7 @@
                 })
                 break
             case 'copy-link':
-                navigator.clipboard.writeText(`${PUBLIC_BASE_URL}/files/${videoID}`)
+                navigator.clipboard.writeText(`${PUBLIC_BASE_URL}/api/files/${videoID}?t=0`)
                 break
             case 'delete':
                 const resp = await DeleteVideo(videoID)

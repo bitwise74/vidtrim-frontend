@@ -22,8 +22,6 @@ export async function LoadInitalData(): Promise<InitialData> {
 
         const body = await resp.json()     
         
-        console.log(resp)
-
         // Only possible codes are 200 and 500
         if (resp.status !== 200) throw new Error(body.error)
         return body

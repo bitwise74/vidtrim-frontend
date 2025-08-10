@@ -21,7 +21,7 @@
             </h1>
 
             <p class="fs-5 text-muted-foreground mb-5 mx-auto" style="max-width: 42rem;">
-        Edit your videos right in your browser, store them securely in the cloud, and share them anywhere. All for free and open source. No downloads, no ads, no spyware and no bullshit.
+        Edit your videos right in your browser, store them securely in the cloud, and share them anywhere. All for free and open source. No downloads, no ads, no spying and no bullshit.
             </p>
 
             <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center mb-5">
