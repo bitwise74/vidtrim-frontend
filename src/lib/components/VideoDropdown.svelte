@@ -18,15 +18,15 @@
                 goto(`/editor&id=${video.id}`)
                 break
             case 'download':
-                window.location.href = `cdn.${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`
+                window.location.href = `${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`
                 break
             case 'share':
                 navigator.share({
-                    url: `cdn.${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`
+                    url: `${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`
                 })
                 break
             case 'copy-link':
-                navigator.clipboard.writeText(`cdn.${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`)
+                navigator.clipboard.writeText(`${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`)
                 break
             case 'delete':
                 const resp = await DeleteVideo(video.id)
