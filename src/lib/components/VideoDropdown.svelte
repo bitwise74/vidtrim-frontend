@@ -3,6 +3,7 @@
     import { PUBLIC_BASE_URL } from '$env/static/public'
     import { DeleteVideo } from '$lib/api/Files'
     import { currentVideoURL, stats, videos } from '$lib/stores/VideoStore'
+    import { inSub } from '$lib/utils/InsertSub'
 
     const { fileKey } = $props()
 
@@ -11,21 +12,21 @@
         if (!video) return
         switch (action) {
             case 'play':
-                currentVideoURL.set(`cd.${PUBLIC_BASE_URL}/${fileKey}`)
+                currentVideoURL.set(`${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`)
                 break
             case 'edit':
                 goto(`/editor&id=${video.id}`)
                 break
             case 'download':
-                window.location.href = `cdn.${PUBLIC_BASE_URL}/${fileKey}`
+                window.location.href = `cdn.${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`
                 break
             case 'share':
                 navigator.share({
-                    url: `cdn.${PUBLIC_BASE_URL}/${fileKey}`
+                    url: `cdn.${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`
                 })
                 break
             case 'copy-link':
-                navigator.clipboard.writeText(`cdn.${PUBLIC_BASE_URL}/${fileKey}`)
+                navigator.clipboard.writeText(`cdn.${inSub(PUBLIC_BASE_URL, 'cdn')}/${fileKey}`)
                 break
             case 'delete':
                 const resp = await DeleteVideo(video.id)

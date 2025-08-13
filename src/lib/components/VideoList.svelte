@@ -1,6 +1,7 @@
 <script lang="ts">
     import { PUBLIC_BASE_URL } from '$env/static/public'
     import { currentVideoURL, videos } from '$lib/stores/VideoStore'
+    import { inSub } from '$lib/utils/InsertSub'
     import VideoDropdown from './VideoDropdown.svelte'
 
     function formatDuration(seconds: number): string {
@@ -89,7 +90,7 @@
                         </div>
                     {:else}
                         <img
-                            src={`cdn.${PUBLIC_BASE_URL}/${video.thumb_key}`}
+                            src={`${inSub(PUBLIC_BASE_URL, 'cdn.')}/${video.thumb_key}`}
                             alt={video.name}
                             class="w-100 h-100"
                             style="object-fit: contain;" />
@@ -100,7 +101,7 @@
                                 class="btn bg-black btn-sm text-white"
                                 onclick={() =>
                                     currentVideoURL.set(
-                                        `cdn.${PUBLIC_BASE_URL}/${video.file_key}`
+                                        `${inSub(PUBLIC_BASE_URL, 'cdn.')}/${video.file_key}`
                                     )}
                                 aria-label="Play video">
                                 <i class="bi bi-play-fill me-1"></i>Play
