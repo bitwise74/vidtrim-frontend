@@ -71,7 +71,7 @@
         <a href="/editor" class="btn btn-dark">Open Editor</a>
     </div>
 {:else}
-    {#each $videos as video (video.id)}
+    {#each $videos as video}
         <div class="col-sm-6 col-lg-4 col-xl-3 mb-3">
             <div class="card d-flex flex-column h-100 border-0 shadow-sm card-hover">
                 <div class="position-relative aspect-video bg-light overflow-hidden rounded-2">
@@ -89,7 +89,7 @@
                         </div>
                     {:else}
                         <img
-                            src={`${PUBLIC_BASE_URL}/api/files/${video.id}?t=1`}
+                            src={`cdn.${PUBLIC_BASE_URL}/${video.thumb_key}`}
                             alt={video.name}
                             class="w-100 h-100"
                             style="object-fit: contain;" />
@@ -100,7 +100,7 @@
                                 class="btn bg-black btn-sm text-white"
                                 onclick={() =>
                                     currentVideoURL.set(
-                                        `${PUBLIC_BASE_URL}/api/files/${video.id}?t=0`
+                                        `cdn.${PUBLIC_BASE_URL}/${video.file_key}`
                                     )}
                                 aria-label="Play video">
                                 <i class="bi bi-play-fill me-1"></i>Play

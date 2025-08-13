@@ -4,33 +4,33 @@
     import { DeleteVideo } from '$lib/api/Files'
     import { currentVideoURL, stats, videos } from '$lib/stores/VideoStore'
 
-    const { videoID } = $props()
+    const { fileKey } = $props()
 
     async function handleVideoAction(action: string) {
-        const video = $videos.find((v) => v.id === videoID)
+        const video = $videos.find((v) => v.file_key === fileKey)
         if (!video) return
         switch (action) {
             case 'play':
-                currentVideoURL.set(`${PUBLIC_BASE_URL}/api/files/${videoID}?t=0`)
+                currentVideoURL.set(`cd.${PUBLIC_BASE_URL}/${fileKey}`)
                 break
             case 'edit':
-                goto(`/editor&id=${videoID}`)
+                goto(`/editor&id=${video.id}`)
                 break
             case 'download':
-                window.location.href = `${PUBLIC_BASE_URL}/api/files/${videoID}?t=0`
+                window.location.href = `cdn.${PUBLIC_BASE_URL}/${fileKey}`
                 break
             case 'share':
                 navigator.share({
-                    url: `${PUBLIC_BASE_URL}/api/files/${videoID}?t=0`
+                    url: `cdn.${PUBLIC_BASE_URL}/${fileKey}`
                 })
                 break
             case 'copy-link':
-                navigator.clipboard.writeText(`${PUBLIC_BASE_URL}/api/files/${videoID}?t=0`)
+                navigator.clipboard.writeText(`cdn.${PUBLIC_BASE_URL}/${fileKey}`)
                 break
             case 'delete':
-                const resp = await DeleteVideo(videoID)
+                const resp = await DeleteVideo(video.id)
 
-                videos.set($videos.filter(v => v.id != videoID))
+                videos.set($videos.filter(v => v.id != video.id))
                 stats.set(resp)
                 break
 

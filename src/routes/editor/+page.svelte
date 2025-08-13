@@ -19,7 +19,7 @@
     let targetSize: number = $state(0)
     let trimStart: number = $state(0)
     let trimEnd: number = $state(0)
-    let processingSpeed = $state('faster')
+    let processingSpeed = $state('superfast')
 
     let videoDuration = $state(0)
     let isLoggedIn = $state(false)

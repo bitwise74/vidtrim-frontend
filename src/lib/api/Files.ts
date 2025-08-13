@@ -10,6 +10,8 @@ export interface Video {
         size: number
         duration: number
         created_at: number
+        file_key: string
+        thumb_key: string
         state: string
 }
 
