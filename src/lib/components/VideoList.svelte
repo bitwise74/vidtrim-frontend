@@ -118,7 +118,7 @@
                         <h6 class="card-title mb-0 line-clamp-2 flex-grow-1 overflow-hidden pe-2">
                             {video.name}
                         </h6>
-                        <VideoDropdown videoID={video.id}></VideoDropdown>
+                        <VideoDropdown fileKey={video.file_key}></VideoDropdown>
                     </div>
 
                     <div
