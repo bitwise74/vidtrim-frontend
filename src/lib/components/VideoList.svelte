@@ -90,7 +90,7 @@
                         </div>
                     {:else}
                         <img
-                            src={`${inSub(PUBLIC_BASE_URL, 'cdn.')}/${video.thumb_key}`}
+                            src={`${inSub(PUBLIC_BASE_URL, 'cdn')}/${video.thumb_key}`}
                             alt={video.name}
                             class="w-100 h-100"
                             style="object-fit: contain;" />
@@ -101,7 +101,7 @@
                                 class="btn bg-black btn-sm text-white"
                                 onclick={() =>
                                     currentVideoURL.set(
-                                        `${inSub(PUBLIC_BASE_URL, 'cdn.')}/${video.file_key}`
+                                        `${inSub(PUBLIC_BASE_URL, 'cdn')}/${video.file_key}`
                                     )}
                                 aria-label="Play video">
                                 <i class="bi bi-play-fill me-1"></i>Play
