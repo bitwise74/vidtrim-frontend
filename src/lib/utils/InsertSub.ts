@@ -6,8 +6,9 @@ export function inSub(url: string, subdomain: string): string {
         u.hostname = parts.join('.');
 
         let result = u.toString();
-        if (u.pathname === "/" && !u.search && !u.hash) {
-            result = result.slice(0, -1);
+
+        if (result.endsWith('/')) {
+                result = result.slice(0, -1);
         }
 
         return result;
