@@ -10,6 +10,7 @@
 
     let err: Error | null = $state(null)
     let page = 0
+    let loaded = 0
     let perPage = $state('10')
     let sortBy = $state('newest')
     let loading = false
@@ -31,6 +32,7 @@
             .then((data) => {
                 videos.set(data.videos)
                 stats.set(data.stats)
+                loaded = $videos.length
             })
             .catch((error) => {
                 err = error
@@ -112,7 +114,7 @@
     }
 
     async function loadModeContent() {
-        if (loading) return
+        if (loading || loaded >= $stats.uploadedFiles) return
         loading = true
 
         page++
@@ -120,6 +122,8 @@
         try {
             const newVideos = await LoadVideos({ page: page, limit: 10 })
             videos.set([...$videos, ...newVideos])
+
+            loaded += newVideos.length
         } catch (error) {
             err = error
             window.scrollTo(0, 0)

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { PUBLIC_BASE_URL } from '$env/static/public'
-    import { currentVideoURL, videos } from '$lib/stores/VideoStore'
+    import { currentVideo, currentVideoURL, videos } from '$lib/stores/VideoStore'
     import { inSub } from '$lib/utils/InsertSub'
     import VideoDropdown from './VideoDropdown.svelte'
 
@@ -38,7 +38,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-{#if $currentVideoURL !== ''}
+{#if $currentVideoURL}
     <div class="modal-backdrop show pt-0" onclick={() => currentVideoURL.set('')}></div>
     <div
         class="modal show d-block pt-0 d-flex"
@@ -48,11 +48,9 @@
             class="modal-dialog modal-xl py-0 align-content-center justify-content-center"
             onclick={(e) => e.stopPropagation()}>
             <div class="modal-content">
-                <!-- TODO: fix video player -->
-                <!-- <VideoPlayerDashhboard video={currentVideoURL} isOpen={true} onClose={() => {console.log("closing")}}></VideoPlayerDashhboard> -->
                 <video controls autoplay class="w-100" volume=50 src={$currentVideoURL}>
-                    <track kind="captions" />
-                </video>
+                <track kind="captions" />
+        </video>
             </div>
         </div>
     </div>
@@ -99,9 +97,7 @@
                             style="background: rgba(0,0,0,0.3);">
                             <button
                                 class="btn bg-black btn-sm text-white"
-                                onclick={() =>
-                                    currentVideoURL.set(`${inSub(PUBLIC_BASE_URL, 'cdn')}/${video.file_key}`
-                                    )}
+                                onclick={() => currentVideo.set(video)}
                                 aria-label="Play video">
                                 <i class="bi bi-play-fill me-1"></i>Play
                             </button>

@@ -135,10 +135,9 @@
         <div class="col-md-3 col-sm-4">
           <h6 class="fw-semibold mb-3">Product</h6>
           <ul class="list-unstyled">
-            <li class="mb-2"><a href="/video-editor" class="text-decoration-none text-muted-foreground">Video Editor</a></li>
+            <li class="mb-2"><a href="/editor" class="text-decoration-none text-muted-foreground">Video Editor</a></li>
             <li class="mb-2"><a href="/dashboard" class="text-decoration-none text-muted-foreground">Dashboard</a></li>
             <li class="mb-2"><a href="/analytics" class="text-decoration-none text-muted-foreground">Analytics</a></li>
-            <li class="mb-2"><a href="/api" class="text-decoration-none text-muted-foreground">API</a></li>
           </ul>
         </div>
 
@@ -155,9 +154,8 @@
         <div class="col-md-3 col-sm-4">
           <h6 class="fw-semibold mb-3">Support</h6>
           <ul class="list-unstyled">
-            <li class="mb-2"><a href="/help-center" class="text-decoration-none text-muted-foreground">Help Center</a></li>
-            <li class="mb-2"><a href="/documentation" class="text-decoration-none text-muted-foreground">Documentation</a></li>
-            <li class="mb-2"><a href="/community" class="text-decoration-none text-muted-foreground">Community</a></li>
+            <li class="mb-2"><a href="https://discord.gg/9VyyCkMSFP" class="text-decoration-none text-muted-foreground">Discord</a></li>
+            <li class="mb-2"><a href="/wiki" class="text-decoration-none text-muted-foreground">How to Use</a></li>
             <li class="mb-2"><a href="/status" class="text-decoration-none text-muted-foreground">Status</a></li>
           </ul>
         </div>

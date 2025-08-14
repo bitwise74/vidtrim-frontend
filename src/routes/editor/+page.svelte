@@ -11,11 +11,6 @@
     import { Turnstile } from 'svelte-turnstile'
     import { jobProgress, processVideo, SaveToCloud, turnstileToken } from './Logic'
 
-    const DEFAULT_SETTINGS = {
-        targetSize: 0,
-        trimStart: 0,
-    }
-
     let targetSize: number = $state(0)
     let trimStart: number = $state(0)
     let trimEnd: number = $state(0)
@@ -32,7 +27,7 @@
     const settingsUnchanged = $derived(() => {
         return (
             targetSize === -1 &&
-            trimStart === DEFAULT_SETTINGS.trimStart &&
+            trimStart === 0 &&
             Math.trunc(trimEnd) === Math.trunc(videoDuration)
         )
     })
@@ -240,15 +235,6 @@
                                         <button
                                             class="nav-link"
                                             data-bs-toggle="tab"
-                                            data-bs-target="#crop-tab"
-                                            type="button">
-                                            Crop
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button
-                                            class="nav-link"
-                                            data-bs-toggle="tab"
                                             data-bs-target="#compress-tab"
                                             type="button">
                                             Compress
@@ -302,64 +288,6 @@
                                             {formatTime(trimEnd - trimStart)}
                                         </div>
                                     </div>
-
-                                    <!-- Crop Tab -->
-                                    <!-- <div class="tab-pane fade" id="crop-tab">
-                                        <div class="row g-3">
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-x"
-                                                    >X Position (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-x"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.x}
-                                                />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-y"
-                                                    >Y Position (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-y"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.y}
-                                                />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-width"
-                                                    >Width (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-width"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.width}
-                                                />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-height"
-                                                    >Height (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-height"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.height}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div> -->
 
                                     <!-- Compress Tab -->
                                     <div class="tab-pane fade" id="compress-tab">
