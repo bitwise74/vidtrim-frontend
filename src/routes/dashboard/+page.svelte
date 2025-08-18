@@ -3,16 +3,18 @@
     import { LoadVideos, SearchVideos, type Video } from '$lib/api/Files'
     import Header from '$lib/components/Header.svelte'
     import StatBlocks from '$lib/components/StatBlocks.svelte'
-    import VideoList from '$lib/components/VideoList.svelte'
+    import { toastStore } from '$lib/components/toast/toastStore'
+    import VideoList from '$lib/components/video/VideoList.svelte'
     import { stats, videos } from '$lib/stores/VideoStore'
     import { onDestroy, onMount } from 'svelte'
     import { SaveToCloud } from '../editor/Logic'
 
-    let err: Error | null = $state(null)
     let page = 0
+    // Used to stop requests when everything has been loaded
+    let loadedVideos = 0
+    let loading = false
     let perPage = $state('10')
     let sortBy = $state('newest')
-    let loading = false
 
     let dropOverlay: HTMLElement | null
     let timeout: number | undefined
@@ -31,13 +33,15 @@
             .then((data) => {
                 videos.set(data.videos)
                 stats.set(data.stats)
+                loadedVideos = $videos.length
             })
             .catch((error) => {
-                err = error
+                toastStore.error('Failed to load data', error)
+                console.error('GET API/USERS: Failed to load initial data', error)
             })
 
         const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting) {
+            if (entries[0].isIntersecting && loadedVideos < $stats.uploadedFiles) {
                 loadModeContent()
             }
         })
@@ -86,28 +90,34 @@
         if (!e.dataTransfer) return
 
         const files = Array.from(e.dataTransfer.files)
-        const videoFile = files.find((file) => file.type.startsWith('video/'))
+        const videoFile = files.find((f) => f.type.startsWith('video/'))
 
-        if (!videoFile) return
+        if (!videoFile) {
+            toastStore.error("Can't process upload", 'No valid mp4 file detected')
+            return
+        }
 
         videos.set([
             {
-                state: 'processing',
+                name: videoFile.name,
                 size: videoFile.size,
                 format: 'video/mp4',
                 created_at: Date.now(),
-                views: 0,
-                name: videoFile.name
+                state: 'processing'
             } as Video,
             ...$videos
         ])
 
         try {
-            await SaveToCloud(videoFile)
-            window.location.reload()
+            const newVid = await SaveToCloud(videoFile)
+            if (!newVid) return
+
+            videos.set([newVid, ...$videos.splice(1)])
         } catch (error) {
-            err = error
-            window.scrollTo(0, 0)
+            // Remove processing vid if failed
+            videos.set([...$videos.splice(1)])
+            toastStore.error("Couldn't save video to cloud", error)
+            console.error('POST /API/FILES', error)
         }
     }
 
@@ -118,11 +128,10 @@
         page++
 
         try {
-            const newVideos = await LoadVideos({ page: page, limit: 10 })
+            const newVideos = await LoadVideos({ page: page, limit: parseInt(perPage) })
             videos.set([...$videos, ...newVideos])
         } catch (error) {
-            err = error
-            window.scrollTo(0, 0)
+            toastStore.error('Failed to load next page', error)
         } finally {
             loading = false
         }
@@ -153,57 +162,44 @@
 
     <Header title="Dashboard" page="dashboard" />
     <main class="container py-4">
-        {#if err}
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <strong>Failed to load your dashboard:</strong>
-                {err}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"
-                ></button>
-            </div>
-        {:else}
-            <StatBlocks></StatBlocks>
+        <StatBlocks />
 
-            <div class="row g-3 mb-4">
-                <div class="col-lg-8 col-md-7">
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="bi bi-search"></i>
-                        </span>
-                        <input
-                            type="text"
-                            class="form-control"
-                            placeholder="Search videos..."
-                            oninput={handleInput} />
-                    </div>
-                </div>
-                <div class="col-lg-3 col-md-3 col-sm-6">
-                    <select class="form-select" bind:value={sortBy}>
-                        <option value="newest">Newest First</option>
-                        <option value="oldest">Oldest First</option>
-                        <option value="az">Name A-Z</option>
-                        <option value="size">Size</option>
-                        <option value="views">Most Views</option>
-                    </select>
-                </div>
-                <div class="col-lg-1 col-md-2 col-sm-6">
-                    <select
-                        class="form-select"
-                        bind:value={perPage}
-                        disabled
-                        placeholder="Results per page">
-                        <option value="10" selected>10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="250">250</option>
-                    </select>
+        <div class="row g-3 mb-4">
+            <div class="col-lg-8 col-md-7">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input
+                        type="text"
+                        class="form-control"
+                        placeholder="Search videos..."
+                        oninput={handleInput} />
                 </div>
             </div>
+            <div class="col-lg-3 col-md-3 col-sm-6">
+                <select class="form-select" bind:value={sortBy}>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="az">Name A-Z</option>
+                    <option value="size">Size</option>
+                    <option value="views">Most Views</option>
+                </select>
+            </div>
+            <div class="col-lg-1 col-md-2 col-sm-6">
+                <select class="form-select" bind:value={perPage} placeholder="Results per page">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="250">250</option>
+                </select>
+            </div>
+        </div>
 
-            <div class="row">
-                <VideoList></VideoList>
-            </div>
-        {/if}
+        <div class="row">
+            <VideoList />
+        </div>
         <div bind:this={sentinel}></div>
     </main>
 </div>

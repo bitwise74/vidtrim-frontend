@@ -1,6 +1,6 @@
-<script>
-  import "../app.css"
-  import Header from '../lib/components/Header.svelte'
+<script lang="ts">
+    import "../app.css"
+    import Header from '../lib/components/Header.svelte'
 </script>
 
 <svelte:head>
@@ -9,6 +9,7 @@
 
 <div class="d-flex flex-column min-vh-100">
   <Header page="main"/>
+
   <main class="flex-grow-1">
     <section class="position-relative py-5 overflow-hidden" style="padding-top: 5rem; padding-bottom: 8rem;">
       <div class="position-absolute top-0 start-0 w-100 h-100 gradient-bg"></div>

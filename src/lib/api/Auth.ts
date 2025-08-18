@@ -30,6 +30,7 @@ export async function Login(form: AuthForm) {
                 case 400: throw new Error("Form is invalid")
                 case 401: throw new Error("Email or password invalid")
                 case 404: throw new Error("User with this e-mail address doesn't exist. Please register first")
+                case 429: throw new Error("You are being rate limited")
                 default: throw new Error("Something went wrong, please check the console for more information")
         }
 }
@@ -53,6 +54,7 @@ export async function Register(form: AuthForm) {
                 case 400: throw new Error(body.error)
                 case 401: throw new Error("Email or password invalid")
                 case 409: throw new Error("User with this e-mail address already exists. Please log in")
+                case 429: throw new Error("You are being rate limited")
                 default: throw new Error(`Something went wrong, please check the console for more information`)
         }
 }

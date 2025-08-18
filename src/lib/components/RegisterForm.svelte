@@ -1,11 +1,11 @@
 <script lang="ts">
     import { Register } from '$lib/api/Auth'
     import '../../app.css'
+    import { toastStore } from './toast/toastStore'
 
     let showPassword = $state(false);
     let showConfirmPassword = $state(false);
     let isLoading = $state(false);
-    let error = $state('');
     let success = $state(false);
     let formData = $state({
         email: '',
@@ -28,7 +28,6 @@
     async function handleSubmit(e: Event) {
         e.preventDefault();
         isLoading = true;
-        error = '';
 
         try {
             if (!formData.email || !formData.password || !formData.confirmPassword) {
@@ -55,7 +54,7 @@
             success = true;
         } catch (err) {
             success = false;
-            error = err.message;
+            toastStore.error("Failed to register account", err.message)
         } finally {
             isLoading = false;
         }
@@ -63,13 +62,11 @@
 
     function handleInputChange(field: string, value: any) {
         formData[field] = value;
-        if (error) error = '';
         passwordValidation = validatePassword(formData.password);
     }
 
     function handleCheckboxChange(field: string, checked: any) {
         formData[field] = checked;
-        if (error) error = '';
     }
 </script>
 
@@ -104,12 +101,6 @@
         </div>
         <div class="card-body p-4">
             <form onsubmit={handleSubmit}>
-                {#if error}
-                    <div class="alert alert-danger" role="alert">
-                        {error}
-                    </div>
-                {/if}
-
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
                     <div class="input-group">

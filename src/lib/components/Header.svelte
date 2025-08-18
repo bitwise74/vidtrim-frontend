@@ -3,10 +3,11 @@
     import { ValidateToken } from '$lib/api/Auth'
     import { getCookie } from '$lib/utils/Cookies'
     import { onMount } from 'svelte'
+    import { toastStore } from './toast/toastStore'
 
-    let { page = '', title = ''} = $props()
+    let { page = '', subpage = '', title = '' } = $props()
     let loggedIn = $state(false)
-    
+
     onMount(async () => {
         if (getCookie('logged_in') === '1') {
             loggedIn = await ValidateToken()
@@ -16,6 +17,59 @@
     const handleLogin = async () => {
         goto(loggedIn ? '/dashboard' : '/login')
     }
+
+    const buttonConfig = {
+        main: () =>
+            loggedIn
+                ? [
+                      {
+                          text: 'Dashboard',
+                          href: '/dashboard',
+                          icon: 'bi-view-stacked',
+                          class: 'btn-dark'
+                      }
+                  ]
+                : [
+                      {
+                          text: 'Log in',
+                          action: handleLogin,
+                          class: 'btn-outline-dark'
+                      },
+                      {
+                       
+                        text: 'Register',
+                        href: '/register',
+                        class: 'btn-dark'
+                      }
+                  ],
+        dashboard: () => [
+            {
+                text: 'Upload Video',
+                action: () => {
+                        toastStore.warning("Not implemented yet", "Drag & drop files here to upload")
+                },
+                icon: 'bi-upload',
+                class: 'btn-outline-dark'
+            },
+            {
+                text: 'Editor',
+                href: '/editor',
+                icon: 'bi-pencil',
+                class: 'btn-dark'
+            }
+        ],
+        login: () => [
+            { text: 'Go Back', href: '/', icon: 'bi-arrow-left', class: 'btn-outline-dark' }
+        ],
+        register: () => [
+            { text: 'Go Back', href: '/', icon: 'bi-arrow-left', class: 'btn-outline-dark' }
+        ],
+        editor: () => [
+            { text: 'Dashboard', href: '/dashboard', icon: 'bi-view-stacked', class: 'btn-dark' }
+        ]
+    }
+
+    const buttons = buttonConfig[subpage ? `${page}/${subpage}` : page]?.() || []
 </script>
 
 <header class="border-bottom bg-white-95 sticky-top-custom">
@@ -37,41 +91,22 @@
                 {/if}
             </div>
 
-            {#if page === 'main'}
-                {#if loggedIn}
-                    <div class="d-flex align-items-center gap-2">
-                        <a href="/dashboard" class="btn btn-dark btn-sm">
-                            <i class="bi bi-view-stacked me-1"></i>
-                            Dashboard
+            <!-- Render buttons dynamically -->
+            <div class="d-flex align-items-center gap-3">
+                {#each buttons as btn}
+                    {#if btn.href}
+                        <a href={btn.href} class="btn btn-sm {btn.class}">
+                            {#if btn.icon}<i class="bi {btn.icon} me-1"></i>{/if}
+                            {btn.text}
                         </a>
-                    </div>
-                {:else}
-                    <div class="d-flex align-items-center gap-2">
-                        <button onclick={handleLogin} class="btn btn-outline-dark btn-sm"
-                            >Log In</button>
-                        <a href="/register" class="btn btn-dark btn-sm">Sign Up</a>
-                    </div>
-                {/if}
-            {:else if page === 'register' || page === 'login'}
-                <div class="d-flex align-items-center gap-2">
-                    <a href="/" class="btn btn-dark btn-sm">
-                        <i class="bi bi-arrow-left me-1"></i>
-                        Go back</a>
-                </div>
-            {:else if page === 'dashboard'}
-                <div class="d-flex align-items-center gap-2">
-                    <a href="/editor" class="btn btn-dark btn-sm">
-                        <i class="bi bi-pencil me-1"></i>
-                        Editor</a>
-                </div>
-            {:else if page === 'editor'}
-                    <div class="d-flex align-items-center gap-2">
-                        <a href="/dashboard" class="btn btn-dark btn-sm">
-                            <i class="bi bi-view-stacked me-1"></i>
-                            Dashboard
-                        </a>
-                    </div>
-            {/if}
+                    {:else if btn.action}
+                        <button onclick={btn.action} class="btn btn-sm {btn.class}">
+                            {#if btn.icon}<i class="bi {btn.icon} me-1"></i>{/if}
+                            {btn.text}
+                        </button>
+                    {/if}
+                {/each}
+            </div>
         </div>
     </div>
 </header>

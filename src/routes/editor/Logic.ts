@@ -1,4 +1,3 @@
-import { goto } from '$app/navigation'
 import { PUBLIC_BASE_URL } from '$env/static/public'
 import type { Video } from '$lib/api/Files'
 import { get, writable } from 'svelte/store'
@@ -51,6 +50,8 @@ export async function processVideo(options: ProcessOptions) {
                                 throw new Error("Unauthorized")
                         case 403:
                                 throw new Error("A job is already running. Please wait for it to finish")
+                case 429: throw new Error("You are being rate limited")
+
                         case 500:
                                 throw new Error(`Something went wrong while processing your request. Request ID: ${body.requestID} Error: ${body.error}`)
                         default:
@@ -95,6 +96,8 @@ export async function processVideo(options: ProcessOptions) {
                         throw new Error("Turnstile failed to verify that you're not a bot. Please refresh the page")
                 case 413:
                         throw new Error("File is too big")
+                case 429: throw new Error("You are being rate limited")
+
                 case 500:
                         throw new Error(`Something went wrong while processing your request. Request ID: ${body.requestID} Error: ${body.error}`)
                 default:
@@ -114,18 +117,17 @@ export async function SaveToCloud(file: File): Promise<Video | undefined> {
                 body: form,
         })
 
-        if (resp.status === 200) {
-                goto("/dashboard")
-                return 
-        }
-
         const body = await resp.json()
 
         switch (resp.status) {
+                case 200:
+                        return body
                 case 400:
                         throw new Error(body.error)
                 case 413:
                         throw new Error("File too large")
+                case 429: throw new Error("You are being rate limited")
+
                 case 500:
                         throw new Error(`Something went wrong while processing your request. Request ID: ${body.requestID} Error: ${body.error}`)
         }

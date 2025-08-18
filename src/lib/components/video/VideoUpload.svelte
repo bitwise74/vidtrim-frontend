@@ -6,7 +6,7 @@
         e.preventDefault()
         isDragOver = false
 
-        const files = Array.from(e.dataTransfer.files)
+        const files = Array.from(e.dataTransfer!.files)
         const videoFile = files.find((file) => file.type.startsWith('video/'))
 
         if (videoFile) {
@@ -25,7 +25,7 @@
     }
 
     function handleFileSelect(e: Event) {
-        const file = e.target.files?.[0]
+        const file = e.target!.files?.[0]
         if (file && file.type.startsWith('video/')) {
             onVideoSelect(file)
         }

@@ -2,7 +2,6 @@ import type { Video } from '$lib/api/Files'
 import type { UserStats } from '$lib/api/User'
 import { writable } from 'svelte/store'
 
-export const duration = writable(0)
 export const currentTime = writable(0)
 
 export const currentVideoURL = writable('')

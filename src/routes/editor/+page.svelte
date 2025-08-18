@@ -1,9 +1,12 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
+    import { page } from '$app/state'
     import { ValidateToken } from '$lib/api/Auth'
+    import { LoadVideo, OwnsVideo } from '$lib/api/Files'
     import Header from '$lib/components/Header.svelte'
-    import VideoPlayer from '$lib/components/VideoPlayer.svelte'
-    import VideoUpload from '$lib/components/VideoUpload.svelte'
+    import { toastStore } from '$lib/components/toast/toastStore'
+    import VideoPlayer from '$lib/components/video/VideoPlayer.svelte'
+    import VideoUpload from '$lib/components/video/VideoUpload.svelte'
     import { currentTime } from '$lib/stores/VideoStore'
     import { getCookie } from '$lib/utils/Cookies'
     import { onMount } from 'svelte'
@@ -11,10 +14,11 @@
     import { Turnstile } from 'svelte-turnstile'
     import { jobProgress, processVideo, SaveToCloud, turnstileToken } from './Logic'
 
-    const DEFAULT_SETTINGS = {
-        targetSize: 0,
-        trimStart: 0,
-    }
+    const videoID = page.url.searchParams.get('id')
+
+    // Used for buttons to disable only one so it looks correct
+    let isProcessing = $state(false)
+    let isSaving = $state(false)
 
     let targetSize: number = $state(0)
     let trimStart: number = $state(0)
@@ -23,7 +27,7 @@
 
     let videoDuration = $state(0)
     let isLoggedIn = $state(false)
-    let isProcessing = $state(false)
+    let src = $state('')
 
     let selectedVideo: File | null = $state(null)
     let fileSize = $state(0)
@@ -32,7 +36,7 @@
     const settingsUnchanged = $derived(() => {
         return (
             targetSize === -1 &&
-            trimStart === DEFAULT_SETTINGS.trimStart &&
+            trimStart === 0 &&
             Math.trunc(trimEnd) === Math.trunc(videoDuration)
         )
     })
@@ -40,24 +44,42 @@
     onMount(async () => {
         if (getCookie('logged_in') == '1') {
             const valid = await ValidateToken()
-
-            if (!valid) {
-                goto('/login')
-            }
-
+            if (!valid) goto('/login')
             isLoggedIn = true
+        }
+
+        if (videoID) {
+            try {
+                const ownsVideo = await OwnsVideo(videoID)
+                if (!ownsVideo) {
+                    toastStore.error("Can't load editor", "You don't own this file", 6000)
+                    return
+                }
+
+                const file = await LoadVideo(videoID)
+                if (!file) return
+
+                src = file.file_key
+                
+                // handleVideoSelect(file)
+            } catch (error) {
+                toastStore.error('Failed to load video', error)
+            }
         }
     })
 
     const handleVideoSelect = (f: File) => {
         selectedVideo = f
+        currentTime.set(0)
 
         fileSize = Math.trunc(f.size / (1024 * 1024))
 
         const url = URL.createObjectURL(f)
         const video = document.createElement('video')
-        video.src = url
+        src = url
 
+        // This fucking sucks
+        video.src = url
         video.addEventListener('loadedmetadata', () => {
             videoDuration = video.duration
             trimEnd = video.duration
@@ -88,13 +110,15 @@
     function handleTrimChange(e: CustomEvent<{ values: number[] }>) {
         const [start, end] = e.detail.values
         trimStart = start
+        currentTime.set(start)
         trimEnd = end
     }
 
     async function handleExport(save = false) {
         if (!selectedVideo) return
 
-        isProcessing = true
+        isSaving = save
+        isProcessing = !save
 
         try {
             if (save) {
@@ -113,6 +137,7 @@
                 }
 
                 await SaveToCloud(file)
+                goto("/dashboard")
                 return
             }
 
@@ -135,25 +160,25 @@
 
             // Timeout to let the animation play out
             setTimeout(() => {
-                isProcessing = false
-
                 a.click()
 
                 document.body.removeChild(a)
                 URL.revokeObjectURL(url)
-            }, 750)
+            }, 500)
         } catch (err) {
-            error = err
-            window.scrollTo(0, 0)
+                error =err
+                toastStore.error("Can't process video", err)
         } finally {
             isProcessing = false
+            isSaving = false
         }
     }
 
     function formatTime(time: number) {
         const minutes = Math.floor(time / 60)
         const seconds = Math.floor(time % 60)
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`
+        const milliseconds = Math.floor((time % 1) * 100)
+        return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`
     }
 </script>
 
@@ -169,7 +194,7 @@
         appearance="interaction-only"
         on:turnstile-callback={(e: CustomEvent<{ token: string }>) => {
             turnstileToken.set(e.detail.token)
-        }}></Turnstile>
+        }}/>
 
     <main class="container py-4">
         <div class="row g-4">
@@ -198,7 +223,7 @@
 
                     <div class="mb-4">
                         <VideoPlayer
-                            video={selectedVideo}
+                        src={src}
                             onTimeUpdate={handleTimeUpdate}
                             {trimEnd}
                             {trimStart} />
@@ -241,6 +266,7 @@
                                             class="nav-link"
                                             data-bs-toggle="tab"
                                             data-bs-target="#crop-tab"
+                                            disabled
                                             type="button">
                                             Crop
                                         </button>
@@ -266,7 +292,7 @@
                                                 values={[trimStart, trimEnd]}
                                                 min={0}
                                                 max={videoDuration}
-                                                step={1}
+                                                step={0.01}
                                                 pipstep={1}
                                                 float
                                                 range
@@ -302,64 +328,6 @@
                                             {formatTime(trimEnd - trimStart)}
                                         </div>
                                     </div>
-
-                                    <!-- Crop Tab -->
-                                    <!-- <div class="tab-pane fade" id="crop-tab">
-                                        <div class="row g-3">
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-x"
-                                                    >X Position (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-x"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.x}
-                                                />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-y"
-                                                    >Y Position (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-y"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.y}
-                                                />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-width"
-                                                    >Width (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-width"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.width}
-                                                />
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="crop-height"
-                                                    >Height (%)</label
-                                                >
-                                                <input
-                                                    type="range"
-                                                    class="form-range"
-                                                    id="crop-height"
-                                                    min="0"
-                                                    max="100"
-                                                    bind:value={cropSettings.height}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div> -->
 
                                     <!-- Compress Tab -->
                                     <div class="tab-pane fade" id="compress-tab">
@@ -419,7 +387,7 @@
                                         <button
                                             class="btn btn-primary"
                                             onclick={() => handleExport()}
-                                            disabled={isProcessing || settingsUnchanged()}>
+                                            disabled={isProcessing || isSaving || settingsUnchanged()}>
                                             {#if isProcessing}
                                                 <span class="spinner-border spinner-border-sm me-2"
                                                 ></span>
@@ -433,9 +401,9 @@
                                         {#if isLoggedIn}
                                             <button
                                                 class="btn btn-outline-primary"
-                                                disabled={isProcessing}
+                                                disabled={isProcessing || isSaving}
                                                 onclick={() => handleExport(true)}>
-                                                {#if isProcessing}
+                                                {#if isSaving}
                                                     <span
                                                         class="spinner-border spinner-border-sm me-2"
                                                     ></span>

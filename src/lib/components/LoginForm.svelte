@@ -2,16 +2,15 @@
     import { goto } from '$app/navigation'
     import { Login } from '$lib/api/Auth'
     import { writable } from 'svelte/store'
+    import { toastStore } from './toast/toastStore'
 
     const showPassword = writable(false);
     const isLoading = writable(false);
-    const error = writable();
     const formData = writable({ email: '', password: '' } as { [key: string]: any });
 
     async function handleSubmit(e: Event) {
         e.preventDefault();
         isLoading.set(true);
-        error.set('');
 
         const { email, password } = $formData;
 
@@ -27,7 +26,7 @@
             await Login({ email, password });
             goto('/dashboard');
         } catch (err) {
-            error.set(err);
+                toastStore.error("Failed to login", err.message)
         } finally {
             isLoading.set(false);
         }
@@ -36,7 +35,6 @@
     function handleInputChange(field: string, e: Event) {
         const value = (e.target as HTMLInputElement).value;
         formData.update((data) => ({ ...data, [field]: value }));
-        if ($error) error.set('');
     }
 </script>
 
@@ -47,12 +45,6 @@
     </div>
     <div class="card-body p-4">
         <form onsubmit={handleSubmit}>
-            {#if $error}
-                <div class="alert alert-danger" role="alert">
-                    {$error}
-                </div>
-            {/if}
-
             <div class="mb-3">
                 <label for="email" class="form-label">Email</label>
                 <div class="input-group">
