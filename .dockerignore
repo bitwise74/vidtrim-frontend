@@ -1,0 +1,10 @@
+.git
+node_modules
+.svelte-kit
+.env.example
+.prettierrc
+bun.lock
+Dockerfile
+docker-compose.yml
+*.md
+*.txt

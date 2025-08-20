@@ -1,0 +1,14 @@
+services:
+  frontend:
+    restart: unless-stopped
+    image: bitwise74/vidsh_frontend:latest
+    container_name: vidsh_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Put your domain name here. Include http or https depending on
+      # if you're running SSL or not (you should be)
+      - PUBLIC_BASE_URL=https://example.com
+      # This should point to your CDN. You can skip this if you serve
+      # files from the disk (which is not available for now)
+      - PUBLIC_CDN_URL=https://your_cdn_url.com
