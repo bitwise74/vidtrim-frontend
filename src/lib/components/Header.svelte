@@ -1,18 +1,16 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
-    import { ValidateToken } from '$lib/api/Auth'
+    import { type Video, UploadVideo } from '$lib/api/Files'
+    import { videos } from '$lib/stores/VideoStore'
     import { getCookie } from '$lib/utils/Cookies'
-    import { onMount } from 'svelte'
     import { toastStore } from './toast/toastStore'
 
     let { page = '', subpage = '', title = '' } = $props()
     let loggedIn = $state(false)
 
-    onMount(async () => {
-        if (getCookie('logged_in') === '1') {
-            loggedIn = await ValidateToken()
-        }
-    })
+    if (getCookie('logged_in') === '1') {
+        loggedIn = true
+    }
 
     const handleLogin = async () => {
         goto(loggedIn ? '/dashboard' : '/login')
@@ -26,27 +24,72 @@
                           text: 'Dashboard',
                           href: '/dashboard',
                           icon: 'bi-view-stacked',
-                          class: 'btn-dark'
+                          class: 'btn-gradient'
                       }
                   ]
                 : [
                       {
                           text: 'Log in',
                           action: handleLogin,
-                          class: 'btn-outline-dark'
+                          class: 'btn-gradient'
                       },
                       {
-                       
-                        text: 'Register',
-                        href: '/register',
-                        class: 'btn-dark'
+                          text: 'Register',
+                          href: '/register',
+                          class: 'btn-gradient'
                       }
                   ],
         dashboard: () => [
             {
                 text: 'Upload Video',
                 action: () => {
-                        toastStore.warning("Not implemented yet", "Drag & drop files here to upload")
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'video/*';
+
+                        input.onchange = async (e: Event) => {
+                                const target = e.target as HTMLInputElement;
+                                if (!target.files || target.files.length === 0) return;
+
+                                const videoFile = Array.from(target.files).find((f) => ["video/mp4", "video/quicktime", "video/x-matroska"].includes(f.type));
+                                if (!videoFile) {
+                                        toastStore.error({
+                                                title: 'No valid files detected',
+                                                message: 'Please use one of the supported formats (mp4, mov, mkv)',
+                                                duration: 10000
+                                        });
+                                        return;
+                                }
+
+                                videos.set([
+                                        {
+                                                name: videoFile.name,
+                                                size: videoFile.size,
+                                                format: videoFile.type,
+                                                created_at: Date.now()/1000,
+                                                state: 'processing'
+                                        } as Video,
+                                        ...$videos
+                                ]);
+
+                                try {
+                                        const newVid = await UploadVideo(videoFile);
+                                        if (!newVid) return;
+
+                                        videos.set([newVid, ...$videos.slice(1)]);
+                                } catch (error) {
+                                        // Remove processing vid if failed
+                                        videos.set([...$videos.slice(1)]);
+                                        toastStore.error({
+                                                title: 'Failed to save video to cloud',
+                                                message: 'Check the console for details',
+                                                duration: 10000
+                                        });
+                                        console.error('POST /API/FILES', error);
+                                }
+                        };
+
+                        input.click();
                 },
                 icon: 'bi-upload',
                 class: 'btn-outline-dark'
@@ -61,11 +104,26 @@
         login: () => [
             { text: 'Go Back', href: '/', icon: 'bi-arrow-left', class: 'btn-outline-dark' }
         ],
+        verify: () => [
+            { text: 'Go Back', href: '/', icon: 'bi-arrow-left', class: 'btn-outline-dark' }
+        ],
         register: () => [
             { text: 'Go Back', href: '/', icon: 'bi-arrow-left', class: 'btn-outline-dark' }
         ],
         editor: () => [
-            { text: 'Dashboard', href: '/dashboard', icon: 'bi-view-stacked', class: 'btn-dark' }
+            loggedIn
+                ? {
+                      text: 'Dashboard',
+                      href: '/dashboard',
+                      icon: 'bi-view-stacked',
+                      class: 'btn-gradient'
+                  }
+                : {
+                      text: 'Go Back',
+                      href: '/',
+                      icon: 'bi-arrow-left',
+                      class: 'btn-outline-dark'
+                  }
         ]
     }
 
@@ -78,7 +136,7 @@
             <div class="d-flex align-items-center">
                 <a href="/" class="d-flex align-items-center text-decoration-none me-3">
                     <div
-                        class="d-flex align-items-center justify-content-center rounded-2 bg-dark me-2"
+                        class="d-flex align-items-center justify-content-center rounded-2 gradient-primary me-2"
                         style="width: 32px; height: 32px;">
                         <i class="bi bi-play-fill text-white"></i>
                     </div>

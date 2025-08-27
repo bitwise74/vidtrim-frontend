@@ -17,17 +17,22 @@
         if (!video) return
         const videoURL = `${PUBLIC_CDN_URL}/${fileKey}`
 
-        ext = "." + fileKey.split('.')[fileKey.split('.').length - 1]
+        ext = '.' + fileKey.split('.')[fileKey.split('.').length - 1]
 
         switch (action) {
             case 'play':
                 currentVideoURL.set(videoURL)
+                break
+            case 'edit':
+                window.location.href = `/editor?id=${video.id}`
                 break
             case 'rename':
                 oldName = video.name
                 renameValue = video.name
                 currentVideoId = video.id
                 showRenameModal = true
+                break
+            case 'assign-labels':
                 break
             case 'download':
                 window.location.href = videoURL
@@ -37,21 +42,32 @@
                     await navigator.share({ url: videoURL })
                 } else if (navigator.clipboard) {
                     await navigator.clipboard.writeText(videoURL)
-                    toastStore.info('Link copied to clipboard')
+                    toastStore.info({
+                        title: 'Link copied to clipboard',
+                        duration: 2000
+                    })
                 }
                 break
             case 'copy-link':
-                toastStore.info('Link copied to clipboard')
+                toastStore.info({
+                    title: 'Link copied to clipboard',
+                    duration: 2000
+                })
                 navigator.clipboard.writeText(videoURL)
                 break
             case 'delete':
                 const resp = await DeleteVideo(video.id)
                 videos.set($videos.filter((v) => v.id != video.id))
                 stats.set(resp)
-                toastStore.success('Video deleted', '', 3000)
+                toastStore.success({
+                    title: 'Video deleted',
+                    duration: 2000
+                })
                 break
             default:
-                toastStore.warning('Not implemented yet')
+                toastStore.warning({
+                    title: 'Not implemented yet'
+                })
                 console.error('unknown video action', action)
         }
     }
@@ -59,16 +75,16 @@
     async function confirmRename() {
         if (!renameValue || !currentVideoId) return
         try {
-            // We do this so users aren't allowed to change the extension of the file
-            const nameWithoutExt = renameValue.replace(/\.[^/.]+$/, '')
+            const nameWithoutExt = renameValue.replace(/\?.*$/, '').replace(/\.[^/.]+$/, '')
             const fullName = nameWithoutExt + ext
 
-            const newVid = await UpdateVideo(currentVideoId, {
-                name: fullName
-            })
+            const newVid = await UpdateVideo(currentVideoId, { name: fullName })
             if (!newVid) return
 
-            toastStore.success('Video renamed', `${oldName} -> ${nameWithoutExt}`)
+            toastStore.success({
+                title: 'Video renamed',
+                duration: 3000
+            })
             const vids = [...$videos]
             const idx = vids.findIndex((v) => v.name === oldName)
             if (idx !== -1) {
@@ -78,7 +94,11 @@
 
             showRenameModal = false
         } catch (err) {
-            toastStore.error('Failed to rename video', "Check the console for details")
+            toastStore.error({
+                title: 'Failed to rename video',
+                message: 'Check the console for details',
+                duration: 10000
+            })
             console.error(err)
         }
     }
@@ -101,6 +121,14 @@
         <li>
             <button class="dropdown-item" onclick={() => handleVideoAction('rename')}
                 ><i class="bi bi-pencil me-2"></i>Rename</button>
+        </li>
+        <li>
+            <button class="dropdown-item" onclick={() => handleVideoAction('edit')}
+                ><i class="bi bi-pencil me-2"></i>Edit</button>
+        </li>
+        <li>
+            <button class="dropdown-item" onclick={() => handleVideoAction('assign-labels')}
+                ><i class="bi bi-tags me-2"></i>Assign Labels</button>
         </li>
         <li>
             <button class="dropdown-item" onclick={() => handleVideoAction('download')}
@@ -130,11 +158,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-body">
-                    <input
-                        type="text"
-                        class="form-control"
-                        bind:value={renameValue}
-                        placeholder="New video name" />
+                    <input type="text" class="form-control" bind:value={renameValue} />
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" onclick={() => (showRenameModal = false)}

@@ -1,15 +1,6 @@
-import { goto } from '$app/navigation'
 import { PUBLIC_BASE_URL } from '$env/static/public'
+import { jobProgress } from '../../routes/editor/Logic'
 import type { UserStats } from './User'
-
-export interface VideoSource {
-        file?: File
-        url?: string
-        name: string
-        type: string
-        size?: number
-        duration?: number
-}
 
 export interface Video {
         id: number
@@ -24,25 +15,37 @@ export interface Video {
         state: string
 }
 
-export interface LoadVideoOpts {
-        page: number
-        limit: number
-}
-
 export interface UpdateVideoOpts {
-        name: string
+        name?: string
+        processing_options?: ProcessingOpts
+        save_to_cloud?: boolean
 }
 
-export async function LoadVideos(opts: LoadVideoOpts): Promise<Video[]> {
-        if (opts.page < 0) {
+export interface ProcessingOpts {
+        targetSize: number
+        trimStart: number
+        trimEnd: number
+        processingSpeed: string
+        fps: number
+        format: string
+        saveToCloud: boolean
+}
+
+export interface ExportOpts {
+        file: File
+        processingOpts: ProcessingOpts
+}
+
+export async function LoadVideos(page: number, limit: number): Promise<Video[]> {
+        if (page < 0) {
                 throw new Error("Page can't be smaller than 0")
         }
 
-        if (opts.limit < 1 || opts.limit > 250) {
+        if (limit < 1 || limit > 250) {
                 throw new Error("Limit must be between 1-250")
         }
 
-        const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/bulk?limit=${opts.limit}&page=${opts.page}`, {
+        const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/bulk?limit=${limit}&page=${page}`, {
                 method: "GET",
                 credentials: "include"
         })
@@ -52,19 +55,7 @@ export async function LoadVideos(opts: LoadVideoOpts): Promise<Video[]> {
         if (resp.status === 200) return body
 
         console.error(`[${body.requestID}] LoadVideos request failed: ${body.error}`)
-
-        switch (resp.status) {
-                case 400:
-                        throw new Error("Reqest is invalid")
-                case 401:
-                        goto("/login")
-                        return []
-                case 404:
-                        return []
-                case 429: throw new Error("You are being rate limited")
-                default:
-                        throw new Error("Something went wrong, please check the console for more information")
-        }
+        throw new Error(body.error)
 }
 
 export async function LoadVideo(id: string | number): Promise<Video | undefined> {
@@ -78,26 +69,12 @@ export async function LoadVideo(id: string | number): Promise<Video | undefined>
         if (resp.status === 200) return body
 
         console.error(`[${body.requestID}] LoadVideos request failed: ${body.error}`)
-
-        switch (resp.status) {
-                case 400:
-                        throw new Error("Reqest is invalid")
-                case 401:
-                        goto("/login")
-                        return
-                case 404:
-                        return
-                case 429: throw new Error("You are being rate limited")
-
-
-                default:
-                        throw new Error("Something went wrong, please check the console for more information")
-        }
+        throw new Error(body.error)
 }
 
 export async function SearchVideos(search: string, limit: number): Promise<Video[]> {
         if (search === "") {
-                return LoadVideos({ limit: limit, page: 0 })
+                return LoadVideos(limit, 0)
         }
 
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/search?query=${encodeURIComponent(search)}&limit=${limit}`, {
@@ -109,14 +86,7 @@ export async function SearchVideos(search: string, limit: number): Promise<Video
         if (resp.status === 200) return body
 
         console.error(`[${body.requestID}] LoadVideos request failed: ${body.error}`)
-
-        switch (resp.status) {
-                case 400: throw new Error("Request is invalid")
-                case 429: throw new Error("You are being rate limited")
-
-                default:
-                        throw new Error("Something went wrong, please check the console for more information")
-        }
+        throw new Error(body.error)
 }
 
 export async function DeleteVideo(videoID: number | string): Promise<UserStats> {
@@ -141,15 +111,42 @@ export async function OwnsVideo(videoID: number | string): Promise<boolean> {
         })
 
         const body = await resp.json()
+        if (resp.status === 200) return body.owns
 
-        if (resp.status !== 200 && resp.status !== 403) {
-                throw new Error(body.error)
-        }
-
-        return body.owns
+        throw new Error(body.error)
 }
 
 export async function UpdateVideo(videoID: number | string, opts: UpdateVideoOpts): Promise<Video | undefined> {
+        if (opts.processing_options) {
+                // Get job ID
+                const jobIDResp = await fetch(`${PUBLIC_BASE_URL}/api/ffmpeg/start`, {
+                        "method": "GET",
+                        credentials: "include"
+                })
+
+                if (jobIDResp.status != 200) {
+                        const body = await jobIDResp.json()
+
+                        console.error("Failed to initialize ffmpeg job", body.requestID, body.error)
+                        throw new Error(body.error)
+                }
+
+                const jobID = (await jobIDResp.json()).jobID
+                const source = new EventSource(`${PUBLIC_BASE_URL}/api/ffmpeg/progress?jobID=${jobID}`, {
+                        withCredentials: true
+                })
+
+                source.onmessage = function (event) {
+                        const v = parseFloat(event.data)
+
+                        if (v >= 100) {
+                                source.close()
+                        }
+
+                        jobProgress.set(v)
+                }
+        }
+
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/files/${videoID}`, {
                 method: "PATCH",
                 credentials: "include",
@@ -161,18 +158,80 @@ export async function UpdateVideo(videoID: number | string, opts: UpdateVideoOpt
         if (resp.status === 200) return body
 
         console.error(`[${body.requestID}] UpdateVideo request failed: ${body.error}`)
+        throw new Error(body.error)
+}
 
-        switch (resp.status) {
-                case 400:
-                        throw new Error("Reqest is invalid")
-                case 401:
-                        goto("/login")
-                        return
-                case 404:
-                        return
-                case 429: throw new Error("You are being rate limited")
+export async function ExportVideo(o: ExportOpts, token: string) {
+        const { trimStart, trimEnd, targetSize, processingSpeed, saveToCloud } = o.processingOpts
 
-                default:
-                        throw new Error("Something went wrong, please check the console for more information")
+        const form = new FormData()
+        form.append("file", o.file)
+
+        if (trimStart > 0) form.append("trimStart", `${trimStart}`)
+        if (trimEnd > 0) form.append("trimEnd", `${trimEnd}`)
+        if (targetSize > 0) form.append("targetSize", `${targetSize}`)
+        if (saveToCloud) form.append("saveToCloud", `${saveToCloud}`)
+
+        form.append("processingSpeed", `${processingSpeed}`)
+
+        // Get job ID
+        const jobIDResp = await fetch(`${PUBLIC_BASE_URL}/api/ffmpeg/start`, {
+                "method": "GET",
+                credentials: "include"
+        })
+
+        if (jobIDResp.status != 200) {
+                const body = await jobIDResp.json()
+
+                console.error("Failed to initialize ffmpeg job", body.requestID, body.error)
+                throw new Error(body.error)
         }
+
+        const jobID = (await jobIDResp.json()).jobID
+        const source = new EventSource(`${PUBLIC_BASE_URL}/api/ffmpeg/progress?jobID=${jobID}`, {
+                withCredentials: true
+        })
+
+        source.onmessage = function (event) {
+                const v = parseFloat(event.data)
+
+                if (v >= 100) {
+                        source.close()
+                }
+
+                jobProgress.set(v)
+        }
+
+        const resp = await fetch(`${PUBLIC_BASE_URL}/api/ffmpeg/process?jobID=${jobID}`, {
+                method: "POST",
+                headers: {
+                        "TurnstileToken": token,
+                },
+                credentials: "include",
+                body: form,
+        })
+
+        if (resp.status === 200) {
+                return await resp.blob()
+        }
+
+        const body = await resp.json()
+        throw new Error(body.error)
+}
+
+export async function UploadVideo(f: File): Promise<Video | undefined> {
+        const form = new FormData()
+
+        form.append("file", f)
+
+        const resp = await fetch(`${PUBLIC_BASE_URL}/api/files`, {
+                method: "POST",
+                credentials: "include",
+                body: form,
+        })
+
+        const body = await resp.json()
+
+        if (resp.status === 200) return body
+        throw new Error(body.error)
 }

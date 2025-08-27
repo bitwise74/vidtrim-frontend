@@ -1,106 +1,163 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
     import { page } from '$app/state'
-    import { ValidateToken } from '$lib/api/Auth'
-    import { LoadVideo, OwnsVideo } from '$lib/api/Files'
+    import { PUBLIC_CDN_URL } from '$env/static/public'
+    import { TokenValidationResult, ValidateToken } from '$lib/api/Auth'
+    import { ExportVideo, LoadVideo, OwnsVideo, UpdateVideo, UploadVideo } from '$lib/api/Files'
     import Header from '$lib/components/Header.svelte'
     import { toastStore } from '$lib/components/toast/toastStore'
-    import VideoPlayer from '$lib/components/video/VideoPlayer.svelte'
-    import VideoUpload from '$lib/components/video/VideoUpload.svelte'
+    import VideoPlayer from '$lib/components/video/Player.svelte'
+    import VideoUpload from '$lib/components/video/Upload.svelte'
     import { currentTime } from '$lib/stores/VideoStore'
     import { getCookie } from '$lib/utils/Cookies'
-    import { onMount } from 'svelte'
+    import { onDestroy, onMount } from 'svelte'
     import RangeSlider from 'svelte-range-slider-pips'
     import { Turnstile } from 'svelte-turnstile'
-    import { jobProgress, processVideo, SaveToCloud, turnstileToken } from './Logic'
+    import { jobProgress } from './Logic'
 
     const videoID = page.url.searchParams.get('id')
 
-    // Used for buttons to disable only one so it looks correct
-    let isProcessing = $state(false)
-    let isSaving = $state(false)
+    // Video metadata
+    let videoName = $state('')
+    let videoSize = $state(0)
+    let videoDuration = $state(0)
 
+    // The video is either a cloudfront url or an attached file
+    let videoSrc = $state('')
+    let selectedVideo: File | null = $state(null)
+
+    let isExporting = $state(false)
+    let isSaving = $state(false)
+    let isEditing = $state(false)
+
+    // Export options
     let targetSize: number = $state(0)
     let trimStart: number = $state(0)
     let trimEnd: number = $state(0)
     let processingSpeed = $state('superfast')
+    let exportFormat = $state('mp4')
+    let exportFps = $state("Don't change")
 
-    let videoDuration = $state(0)
+    // Other things needed
     let isLoggedIn = $state(false)
-    let src = $state('')
+    let turnstileToken = ''
 
-    let selectedVideo: File | null = $state(null)
-    let fileSize = $state(0)
-    let error: Error | null = $state(null)
-
-    const settingsUnchanged = $derived(() => {
+    const settingsUnchanged = (): boolean => {
         return (
             targetSize === -1 &&
             trimStart === 0 &&
-            Math.trunc(trimEnd) === Math.trunc(videoDuration)
+            trimEnd === videoDuration &&
+            exportFormat === 'mp4' &&
+            exportFps === "Don't change"
         )
-    })
+    }
 
+    // Mainly checks for when the video ID query is present
     onMount(async () => {
         if (getCookie('logged_in') == '1') {
-            const valid = await ValidateToken()
-            if (!valid) goto('/login')
-            isLoggedIn = true
+            isLoggedIn = (await ValidateToken()) == TokenValidationResult.VALID
         }
 
-        if (videoID) {
-            try {
-                const ownsVideo = await OwnsVideo(videoID)
-                if (!ownsVideo) {
-                    toastStore.error("Can't load editor", "You don't own this file", 6000)
-                    return
-                }
+        if (!videoID) return
 
-                const file = await LoadVideo(videoID)
-                if (!file) return
-
-                src = file.file_key
-                
-                // handleVideoSelect(file)
-            } catch (error) {
-                toastStore.error('Failed to load video', error)
-            }
+        // Reject if not logged in but trying to edit existing video
+        if (!isLoggedIn) {
+            toastStore.error({
+                title: 'You must be logged in to edit videos',
+                dismissible: false,
+                duration: 10000
+            })
+            return
         }
+
+        const owns = await OwnsVideo(videoID).catch((err) => {
+            console.error(err)
+        })
+
+        if (!owns) {
+                toastStore.error({
+                        title: "You don't own this video",
+                        duration: 10000
+                })
+                return
+        }
+
+        isEditing = true
+        
+        // Load video if logged in and owns video
+        const videoData = await LoadVideo(videoID).catch((err) => {
+            toastStore.error({
+                title: 'Failed to load video',
+                message: 'Check the console for details'
+            })
+            console.error(err)
+        })
+
+        if (!videoData) return
+
+        videoName = videoData.name
+        videoSize = parseFloat((videoData.size / (1024 * 1024)).toFixed(2))
+        videoDuration = videoData.duration
+        videoSrc = `${PUBLIC_CDN_URL}/${videoData?.file_key}`
+        trimEnd = videoDuration
+    })
+
+    onDestroy(() => {
+        if (videoSrc) URL.revokeObjectURL(videoSrc)
     })
 
     const handleVideoSelect = (f: File) => {
+        if (videoSrc) URL.revokeObjectURL(videoSrc)
+        videoSrc = URL.createObjectURL(f)
+
+        // This assignment changes what the processing function does. That is
+        // if a video is not selected the function will only send edit instructions
+        // to the server for a file in the S3 server.
         selectedVideo = f
-        currentTime.set(0)
 
-        fileSize = Math.trunc(f.size / (1024 * 1024))
+        if (f.type === "video/x-matroska") {
+                toastStore.warning({
+                        title: ".mkv file detected",
+                        message: "Due to limitations from the browser playback of .mkv files doesn't work. Your settings will still apply to them and they'll be converted to mp4 files upon export/upload, but you won't be able to preview them here. Some settings may be entirely broken.",
+                        duration: 20000
+                })
 
-        const url = URL.createObjectURL(f)
+                toastStore.info({
+                        title: "Possible solution",
+                        message: "Upload your video to the dashboard first to convert it into an mp4 file, then click on it's dropdown menu and choose 'edit'",
+                        duration: 20000
+                })
+        }
+
+        videoSize = parseFloat((f.size / (1024 * 1024)).toFixed(2))
+        videoName = f.name
+
         const video = document.createElement('video')
-        src = url
 
-        // This fucking sucks
-        video.src = url
-        video.addEventListener('loadedmetadata', () => {
+        const onMeta = () => {
             videoDuration = video.duration
             trimEnd = video.duration
-            URL.revokeObjectURL(url)
-            video.removeEventListener('loadmetadata', () => {})
-        })
+
+            video.removeEventListener('loadedmetadata', onMeta)
+            video.src = ''
+            video.load()
+        }
+
+        video.addEventListener('loadedmetadata', onMeta)
+        video.src = videoSrc
     }
 
     const handleVideoClear = () => {
+        videoSrc = ''
         selectedVideo = null
         videoDuration = 0
+        currentTime.set(0)
         trimStart = 0
         trimEnd = 0
-        fileSize = 0
-    }
-
-    const handleTimeUpdate = (_, duration: number) => {
-        if (videoDuration === 0) {
-            videoDuration = Math.trunc(duration)
-            trimEnd = Math.trunc(duration)
-        }
+        videoSize = 0
+        exportFormat = 'mp4'
+        exportFps = "Don't change"
+        if (videoSrc) URL.revokeObjectURL(videoSrc)
     }
 
     const handleCompressChange = (e: CustomEvent<{ value: number }>) => {
@@ -114,64 +171,108 @@
         trimEnd = end
     }
 
-    async function handleExport(save = false) {
-        if (!selectedVideo) return
-
-        isSaving = save
-        isProcessing = !save
+    async function handleExport() {
+        isExporting = true
 
         try {
-            if (save) {
-                let file = selectedVideo
+            if (selectedVideo) {
+                // Handle for attached files (send to server)
 
-                if (!settingsUnchanged()) {
-                    const processedVideo = await processVideo({
+                const processedBlob = await ExportVideo(
+                    {
                         file: selectedVideo,
-                        targetSize: targetSize,
-                        trimEnd: trimEnd,
-                        trimStart: trimStart,
-                        processingSpeed: processingSpeed
-                    })
+                        processingOpts: {
+                            format: exportFormat,
+                            fps: parseInt(exportFps),
+                            processingSpeed,
+                            targetSize,
+                            trimEnd,
+                            trimStart,
+                            saveToCloud: false
+                        }
+                    },
+                    turnstileToken
+                )
 
-                    file = new File([processedVideo], selectedVideo.name, { type: 'video/mp4' })
-                }
+                downloadBlob(processedBlob, 'edited_' + videoName)
+            } else {
+                // Handle send instructions
 
-                await SaveToCloud(file)
-                goto("/dashboard")
+                const video = await UpdateVideo(videoID!, {
+                    processing_options: {
+                        format: exportFormat,
+                        fps: parseInt(exportFps),
+                        processingSpeed,
+                        trimEnd,
+                        trimStart,
+                        targetSize,
+                        saveToCloud: false
+                    }
+                })
+                if (!video) return
+                window.location.href = '/dashboard'
+            }
+        } catch (error) {
+            toastStore.error({
+                title: 'Failed to edit video',
+                message: 'Check the console for details',
+                duration: 10000
+            })
+        } finally {
+            isExporting = false
+        }
+    }
+
+    async function handleSaveToCloud() {
+        if (!selectedVideo) return
+
+        isSaving = true
+
+        try {
+            if (settingsUnchanged()) {
+                // Uploads can only happen with attached video files
+                await UploadVideo(selectedVideo)
+                goto('/dashboard')
                 return
             }
 
-            const a = document.createElement('a')
-            let url = ''
-
-            const processedVideo = await processVideo({
-                file: selectedVideo,
-                targetSize: targetSize,
-                trimEnd: trimEnd,
-                trimStart: trimStart,
-                processingSpeed: processingSpeed
+            await ExportVideo(
+                {
+                    file: selectedVideo,
+                    processingOpts: {
+                        format: exportFormat,
+                        fps: parseInt(exportFps),
+                        processingSpeed,
+                        targetSize,
+                        trimEnd,
+                        trimStart,
+                        saveToCloud: true
+                    }
+                },
+                turnstileToken
+            )
+            goto('/dashboard')
+        } catch (error) {
+            toastStore.error({
+                title: 'Failed to save video to cloud',
+                message: 'Check the console for details',
+                duration: 10000
             })
-
-            url = URL.createObjectURL(processedVideo)
-            a.href = url
-            a.download = `edited_${selectedVideo.name!}`
-
-            document.body.appendChild(a)
-
-            // Timeout to let the animation play out
-            setTimeout(() => {
-                a.click()
-
-                document.body.removeChild(a)
-                URL.revokeObjectURL(url)
-            }, 500)
-        } catch (err) {
-                error =err
-                toastStore.error("Can't process video", err)
+            console.error(error)
         } finally {
-            isProcessing = false
             isSaving = false
         }
+    }
+
+    function downloadBlob(blob: Blob, filename: string) {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
     }
 
     function formatTime(time: number) {
@@ -179,6 +280,55 @@
         const seconds = Math.floor(time % 60)
         const milliseconds = Math.floor((time % 1) * 100)
         return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`
+    }
+
+    function parseTime(str: string): number | null {
+        const parts = str.split(':').map(Number)
+        if (parts.some(isNaN)) return null
+        if (parts.length === 2) return parts[0] * 60 + parts[1]
+        return parts[0]
+    }
+
+    function clampTrimValues(start: number, end: number): [number, number] {
+        const clampedStart = Math.max(0, Math.min(start, videoDuration))
+        const clampedEnd = Math.max(clampedStart, Math.min(end, videoDuration))
+        return [clampedStart, clampedEnd]
+    }
+
+    function handleTrimStartChange(e: FocusEvent) {
+        const target = e.target as HTMLSpanElement
+        const val = parseTime(target.innerText)
+        if (val !== null) {
+            ;[trimStart, trimEnd] = clampTrimValues(val, trimEnd)
+        }
+        target.innerText = formatTime(trimStart)
+    }
+
+    function handleTrimEndChange(e: FocusEvent) {
+        const target = e.target as HTMLSpanElement
+        const val = parseTime(target.innerText)
+        if (val !== null) {
+            ;[trimStart, trimEnd] = clampTrimValues(trimStart, val)
+        }
+        target.innerText = formatTime(trimEnd)
+    }
+
+    function handleTargetSizeChange(e: FocusEvent) {
+        const target = e.target as HTMLSpanElement
+        let val = parseInt(target.innerText)
+
+        if (isNaN(val)) {
+            val = 0
+        }
+
+        target.innerText = `${val}`
+    }
+
+    function onTimeUpdate(video: HTMLVideoElement) {
+        if (video.currentTime >= trimEnd) {
+            video.pause()
+            video.currentTime = trimEnd
+        }
     }
 </script>
 
@@ -193,202 +343,286 @@
         siteKey="0x4AAAAAABkH5R_4hvXLiZqn"
         appearance="interaction-only"
         on:turnstile-callback={(e: CustomEvent<{ token: string }>) => {
-            turnstileToken.set(e.detail.token)
-        }}/>
+            turnstileToken = e.detail.token
+        }} />
 
     <main class="container py-4">
         <div class="row g-4">
-            {#if error}
-                <div class="alert alert-danger" role="alert">
-                    <p>
-                        {error}
-                        <button
-                            class="btn btn-outline-danger btn-sm"
-                            aria-label="Dismiss error"
-                            onclick={(error = null)}>
-                            <i class="bi bi-x"></i>
-                        </button>
-                    </p>
-                </div>
-            {/if}
-
-            {#if selectedVideo}
+            {#if videoSrc}
                 <div class="col-lg-8">
                     <div class="mb-4">
                         <VideoUpload
-                            onVideoSelect={handleVideoSelect}
-                            {selectedVideo}
+                            videoSelected
+                            {videoName}
+                            {videoSize}
                             onClear={handleVideoClear} />
                     </div>
-
-                    <div class="mb-4">
-                        <VideoPlayer
-                        src={src}
-                            onTimeUpdate={handleTimeUpdate}
-                            {trimEnd}
-                            {trimStart} />
-                    </div>
+                    <VideoPlayer
+                        src={videoSrc}
+                        duration={videoDuration}
+                        {trimEnd}
+                        {trimStart}
+                        {onTimeUpdate} />
                 </div>
             {:else}
-                <div class="col-lg-12"></div>
                 <div class="mb-4">
                     <VideoUpload
                         onVideoSelect={handleVideoSelect}
-                        {selectedVideo}
+                        videoSelected={false}
                         onClear={handleVideoClear} />
                 </div>
             {/if}
 
-            {#if selectedVideo}
+            {#if videoSrc}
                 <div class="col-lg-4">
                     <div class="card shadow">
-                        <div class="card-header bg-white">
-                            <h5 class="card-title mb-0 d-flex align-items-center">
-                                <i class="bi bi-scissors me-2"></i>
-                                Editing Tools
-                            </h5>
-                        </div>
                         <div class="card-body">
-                            {#if selectedVideo}
-                                <!-- Tabs -->
-                                <ul class="nav nav-tabs mb-4" role="tablist">
-                                    <li class="nav-item" role="presentation">
-                                        <button
-                                            class="nav-link active"
-                                            data-bs-toggle="tab"
-                                            data-bs-target="#trim-tab"
-                                            type="button">
-                                            Trim
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button
-                                            class="nav-link"
-                                            data-bs-toggle="tab"
-                                            data-bs-target="#crop-tab"
-                                            disabled
-                                            type="button">
-                                            Crop
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button
-                                            class="nav-link"
-                                            data-bs-toggle="tab"
-                                            data-bs-target="#compress-tab"
-                                            type="button">
-                                            Compress
-                                        </button>
-                                    </li>
-                                </ul>
+                            <!-- Tabs -->
+                            <ul class="nav nav-tabs mb-4" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button
+                                        class="nav-link active"
+                                        data-bs-toggle="tab"
+                                        data-bs-target="#trim-tab"
+                                        type="button">
+                                        <i class="bi-scissors me-1"></i> Trim
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="tab"
+                                        data-bs-target="#crop-tab"
+                                        disabled
+                                        type="button">
+                                        <i class="bi-crop me-1"></i> Crop
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="tab"
+                                        data-bs-target="#compress-tab"
+                                        type="button">
+                                        <i class="bi-file-earmark-arrow-down me-1"></i> Compress
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button
+                                        class="nav-link"
+                                        data-bs-toggle="tab"
+                                        data-bs-target="#export-tab"
+                                        type="button">
+                                        <i class="bi-box-arrow-up me-1"></i> Export
+                                    </button>
+                                </li>
+                            </ul>
 
-                                <div class="tab-content">
-                                    <div class="tab-pane fade show active" id="trim-tab">
-                                        <p>
-                                            From: {formatTime(trimStart)} to: {formatTime(trimEnd)}
-                                        </p>
-                                        <div class="mb-3">
-                                            <RangeSlider
-                                                values={[trimStart, trimEnd]}
-                                                min={0}
-                                                max={videoDuration}
-                                                step={0.01}
-                                                pipstep={1}
-                                                float
-                                                range
-                                                draggy={true}
-                                                on:change={handleTrimChange}
-                                                formatter={formatTime}
-                                                style="--range-range: #1463DA"></RangeSlider>
-                                            <div class="d-flex justify-content-between">
-                                                <button
-                                                    class="btn btn-outline-primary"
-                                                    data-bs-toggle="tooltip"
-                                                    title="Set Trim Start to Current Time"
-                                                    aria-label="Set Trim Start to Current Time"
-                                                    onclick={() => {
-                                                        trimStart = $currentTime
-                                                    }}>
-                                                    <i class="bi bi-skip-start-fill"></i>
-                                                </button>
-                                                <button
-                                                    class="btn btn-outline-primary"
-                                                    data-bs-toggle="tooltip"
-                                                    title="Set Trim End to Current Time"
-                                                    aria-label="Set Trim End to Current Time"
-                                                    onclick={() => {
-                                                        trimEnd = $currentTime
-                                                    }}>
-                                                    <i class="bi bi-skip-end-fill"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="small text-muted">
-                                            New duration:
-                                            {formatTime(trimEnd - trimStart)}
+                            <div class="tab-content">
+                                <!-- Trim Tab -->
+                                <div class="tab-pane show active" id="trim-tab">
+                                    <p>
+                                        From:
+                                        <span
+                                            class="trim-time editable"
+                                            contenteditable="true"
+                                            role="textbox"
+                                            tabindex="0"
+                                            onblur={handleTrimStartChange}
+                                            onkeydown={(e: KeyboardEvent) => {
+                                                if (e.key === 'Enter') {
+                                                    ;(e.target as HTMLSpanElement).blur()
+                                                    e.preventDefault()
+                                                }
+                                            }}>
+                                            {formatTime(trimStart)}
+                                        </span>
+                                        to:
+                                        <span
+                                            class="trim-time editable"
+                                            contenteditable="true"
+                                            role="textbox"
+                                            tabindex="0"
+                                            onblur={handleTrimEndChange}
+                                            onkeydown={(e: KeyboardEvent) => {
+                                                if (e.key === 'Enter') {
+                                                    ;(e.target as HTMLSpanElement).blur()
+                                                    e.preventDefault()
+                                                }
+                                            }}>
+                                            {formatTime(trimEnd)}
+                                        </span>
+                                    </p>
+
+                                    <div class="mb-3">
+                                        <RangeSlider
+                                            spring={false}
+                                            values={[trimStart, trimEnd]}
+                                            min={0}
+                                            max={videoDuration}
+                                            step={0.01}
+                                            float
+                                            range
+                                            draggy={true}
+                                            on:change={handleTrimChange}
+                                            formatter={formatTime}
+                                            style="--range-range: #1463DA">
+                                        </RangeSlider>
+
+                                        <div class="d-flex justify-content-between">
+                                            <button
+                                                aria-label="Set Trim Start to Current Time"
+                                                class="btn btn-outline-primary"
+                                                title="Set Trim Start to Current Time"
+                                                onclick={() => (trimStart = $currentTime)}>
+                                                <i class="bi bi-skip-start-fill"></i>
+                                            </button>
+                                            <button
+                                                aria-label="Set Trim End to Current Time"
+                                                class="btn btn-outline-primary"
+                                                title="Set Trim End to Current Time"
+                                                onclick={() => (trimEnd = $currentTime)}>
+                                                <i class="bi bi-skip-end-fill"></i>
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <!-- Compress Tab -->
-                                    <div class="tab-pane fade" id="compress-tab">
-                                        <div class="mb-3">
-                                            <label for="target-size">
-                                                Target Size:
-                                                {#if targetSize <= 0 || targetSize >= fileSize}
-                                                    Not set
-                                                {:else}
-                                                    {targetSize} MB
-                                                {/if}
-                                            </label>
-
-                                            <RangeSlider
-                                                value={0}
-                                                min={0}
-                                                max={fileSize}
-                                                step={1}
-                                                pipstep={1}
-                                                float
-                                                on:change={handleCompressChange}
-                                                formatter={(val) => {
-                                                    if (val == 0 || val == fileSize) {
-                                                        targetSize = -1
-                                                        return 'Not set'
-                                                    }
-
-                                                    return val.toString() + ' MB'
-                                                }}></RangeSlider>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label" for="processing-speed"
-                                                >Processing Speed</label>
-                                            <p class="small text-muted">
-                                                Slower processing will give you a better quality.
-                                                Faster processing may result in file sizes
-                                                inaccurate to the requested target size (just
-                                                decrease it a bit more)
-                                            </p>
-                                            <select
-                                                class="form-select"
-                                                id="processing-speed"
-                                                bind:value={processingSpeed}>
-                                                <option value="ultrafast">Fastest</option>
-                                                <option value="superfast">Faster</option>
-                                                <option value="faster">Fast</option>
-                                                <option value="fast">Normal</option>
-                                                <option value="medium">Slower</option>
-                                            </select>
-                                        </div>
+                                    <div class="small text-muted">
+                                        New duration: {formatTime(trimEnd - trimStart)}<br />
+                                        Tip: Click on the timestamps to edit
                                     </div>
                                 </div>
 
-                                <!-- Action Buttons -->
-                                <div class="border-top pt-4 mt-4">
-                                    <div class="d-grid gap-3">
+                                <!-- Compress Tab -->
+                                <div class="tab-pane" id="compress-tab">
+                                    <div class="mb-3">
+                                        <label for="target-size">
+                                            Target Size:
+                                            {#if targetSize <= 0 || targetSize >= videoSize}
+                                                Not set
+                                            {:else}
+                                                <span
+                                                    class="target-size editable"
+                                                    contenteditable="true"
+                                                    role="textbox"
+                                                    tabindex="0"
+                                                    onblur={handleTargetSizeChange}
+                                                    onkeydown={(e: KeyboardEvent) => {
+                                                        if (e.key === 'Enter') {
+                                                            ;(e.target as HTMLSpanElement).blur()
+                                                            e.preventDefault()
+                                                        }
+                                                    }}>
+                                                    {targetSize}
+                                                </span>MB
+                                            {/if}
+                                        </label>
+
+                                        <RangeSlider
+                                            spring={false}
+                                            value={0}
+                                            min={0}
+                                            max={videoSize}
+                                            step={1}
+                                            float
+                                            on:change={handleCompressChange}
+                                            formatter={(val) => {
+                                                if (val == 0 || val == videoSize) {
+                                                    targetSize = -1
+                                                    return 'Not set'
+                                                }
+
+                                                return val.toString() + ' MB'
+                                            }}></RangeSlider>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="processing-speed"
+                                            >Processing Speed</label>
+                                        <p class="small text-muted">
+                                            Slower processing will give you a better quality. Faster
+                                            processing may result in file sizes inaccurate to the
+                                            requested target size (just decrease it a bit more)
+                                        </p>
+                                        <select
+                                            class="form-select"
+                                            id="processing-speed"
+                                            bind:value={processingSpeed}>
+                                            <option value="ultrafast">Fastest</option>
+                                            <option value="superfast">Faster</option>
+                                            <option value="faster">Fast</option>
+                                            <option value="fast">Normal</option>
+                                            <option value="medium">Slower</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Export Tab -->
+                                <div class="tab-pane" id="export-tab">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="export-format">Format</label>
+                                        <p class="small text-muted">
+                                            Some formats may take longer to process
+                                        </p>
+                                        <select
+                                            class="form-select"
+                                            id="export-format"
+                                            bind:value={exportFormat}>
+                                            <option value="mp4">mp4</option>
+                                            <option value="mov">mov</option>
+                                            <option value="avi">avi</option>
+                                            <option value="gif">gif</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="export-framerate">
+                                            Framerate
+                                        </label>
+                                        <p class="small text-muted">
+                                            Reducing the framerate will also reduce the file size
+                                        </p>
+
+                                        <select
+                                            class="form-select"
+                                            id="export-framerate"
+                                            bind:value={exportFps}>
+                                            <option value="Don't change">Don't change</option>
+                                            <option value="60">60</option>
+                                            <option value="30">30</option>
+                                            <option value="24">24</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="border-top pt-4 mt-4">
+                                <div class="d-grid gap-3">
+                                    {#if videoID && isEditing}
+                                        <!-- Show only Update Video button -->
+                                        <button
+                                            class="btn btn-outline-warning"
+                                            disabled={isExporting ||
+                                                isSaving ||
+                                                settingsUnchanged()}
+                                            onclick={() => handleExport()}>
+                                            {#if isSaving}
+                                                <span class="spinner-border spinner-border-sm me-2"
+                                                ></span>
+                                                Updating...
+                                            {:else}
+                                                <i class="bi bi-pencil-square me-2"></i>
+                                                Update Video
+                                            {/if}
+                                        </button>
+                                    {:else}
+                                        <!-- Always show Export Video button -->
                                         <button
                                             class="btn btn-primary"
                                             onclick={() => handleExport()}
-                                            disabled={isProcessing || isSaving || settingsUnchanged()}>
-                                            {#if isProcessing}
+                                            disabled={isExporting ||
+                                                isSaving ||
+                                                settingsUnchanged()}>
+                                            {#if isExporting}
                                                 <span class="spinner-border spinner-border-sm me-2"
                                                 ></span>
                                                 Processing...
@@ -397,12 +631,12 @@
                                                 Export Video
                                             {/if}
                                         </button>
-
+                                        <!-- Show normal Save / Sign In buttons -->
                                         {#if isLoggedIn}
                                             <button
                                                 class="btn btn-outline-primary"
-                                                disabled={isProcessing || isSaving}
-                                                onclick={() => handleExport(true)}>
+                                                disabled={isExporting || isSaving}
+                                                onclick={() => handleSaveToCloud()}>
                                                 {#if isSaving}
                                                     <span
                                                         class="spinner-border spinner-border-sm me-2"
@@ -424,21 +658,22 @@
                                                     >Sign In</a>
                                             </div>
                                         {/if}
-                                        {#if isProcessing}
-                                            <div class="progress mt-2" style="height: 6px;">
-                                                <div
-                                                    class="progress-bar progress-bar-animated bg-success"
-                                                    role="progressbar"
-                                                    style="width: {$jobProgress}%;"
-                                                    aria-valuenow={$jobProgress}
-                                                    aria-valuemin="0"
-                                                    aria-valuemax="100">
-                                                </div>
+                                    {/if}
+
+                                    {#if isExporting || isSaving}
+                                        <div class="progress mt-2" style="height: 6px;">
+                                            <div
+                                                class="progress-bar progress-bar-animated bg-success"
+                                                role="progressbar"
+                                                style="width: {$jobProgress}%;"
+                                                aria-valuenow={$jobProgress}
+                                                aria-valuemin="0"
+                                                aria-valuemax="100">
                                             </div>
-                                        {/if}
-                                    </div>
+                                        </div>
+                                    {/if}
                                 </div>
-                            {/if}
+                            </div>
                         </div>
                     </div>
                 </div>

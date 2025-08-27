@@ -1,13 +1,13 @@
 <script lang="ts">
-    import { PUBLIC_BASE_URL } from '$env/static/public'
-    import { LoadVideos, SearchVideos, type Video } from '$lib/api/Files'
+    import { goto } from '$app/navigation'
+    import { LoadVideos, SearchVideos, UploadVideo, type Video } from '$lib/api/Files'
+    import { LoadInitialData } from '$lib/api/User'
     import Header from '$lib/components/Header.svelte'
     import StatBlocks from '$lib/components/StatBlocks.svelte'
     import { toastStore } from '$lib/components/toast/toastStore'
-    import VideoList from '$lib/components/video/VideoList.svelte'
+    import VideoList from '$lib/components/video/List.svelte'
     import { stats, videos } from '$lib/stores/VideoStore'
     import { onDestroy, onMount } from 'svelte'
-    import { SaveToCloud } from '../editor/Logic'
 
     let page = 0
     // Used to stop requests when everything has been loaded
@@ -19,46 +19,43 @@
     let dropOverlay: HTMLElement | null
     let timeout: number | undefined
     let sentinel: Element
+    let observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && loadedVideos < $stats.uploadedFiles) {
+            loadModeContent()
+        }
+    })
 
-    onMount(() => {
+    onMount(async () => {
         dropOverlay = document.getElementById('dropOverlay')
         window.addEventListener('dragenter', showOverlay)
         window.addEventListener('dragend', hideOverlay)
 
-        fetch(`${PUBLIC_BASE_URL}/api/users`, {
-            method: 'GET',
-            credentials: 'include'
-        })
-            .then((resp) => resp.json())
-            .then((data) => {
-                videos.set(data.videos)
-                stats.set(data.stats)
-                loadedVideos = $videos.length
-            })
-            .catch((error) => {
-                toastStore.error('Failed to load data', error)
-                console.error('GET API/USERS: Failed to load initial data', error)
-            })
+        try {
+            const data = await LoadInitialData()
 
-        const observer = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && loadedVideos < $stats.uploadedFiles) {
-                loadModeContent()
-            }
-        })
+            videos.set(data.videos)
+            stats.set(data.stats)
+            loadedVideos = data.videos.length
+        } catch (error) {
+            toastStore.error({
+                title: 'Failed to load dashboard',
+                message: 'Check the console for more details',
+                duration: 10000
+            })
+            console.error('GET API/USERS: Failed to load initial data', error)
+            goto('/')
+        }
 
         if (sentinel) {
             observer.observe(sentinel)
-        }
-
-        return () => {
-            observer.disconnect()
-            window.removeEventListener('dragenter', showOverlay)
-            window.removeEventListener('dragend', hideOverlay)
         }
     })
 
     onDestroy(() => {
         clearTimeout(timeout)
+        observer?.disconnect()
+        window.removeEventListener('dragenter', showOverlay)
+        window.removeEventListener('dragend', hideOverlay)
     })
 
     function handleInput(e: any) {
@@ -90,10 +87,14 @@
         if (!e.dataTransfer) return
 
         const files = Array.from(e.dataTransfer.files)
-        const videoFile = files.find((f) => f.type.startsWith('video/'))
+        const videoFile = files.find((f) => ["video/mp4", "video/quicktime", "video/x-matroska"].includes(f.type))
 
         if (!videoFile) {
-            toastStore.error("Can't process upload", 'No valid mp4 file detected')
+            toastStore.error({
+                title: 'No valid files detected',
+                message: 'Please use one of the supported formats (mp4, mov, mkv)',
+                duration: 10000
+            })
             return
         }
 
@@ -102,21 +103,25 @@
                 name: videoFile.name,
                 size: videoFile.size,
                 format: 'video/mp4',
-                created_at: Date.now(),
+                created_at: Date.now()/1000,
                 state: 'processing'
             } as Video,
             ...$videos
         ])
 
         try {
-            const newVid = await SaveToCloud(videoFile)
+            const newVid = await UploadVideo(videoFile)
             if (!newVid) return
 
             videos.set([newVid, ...$videos.splice(1)])
         } catch (error) {
             // Remove processing vid if failed
             videos.set([...$videos.splice(1)])
-            toastStore.error("Couldn't save video to cloud", error)
+            toastStore.error({
+                title: 'Failed to save video to cloud',
+                message: 'Check the console for details',
+                duration: 10000
+            })
             console.error('POST /API/FILES', error)
         }
     }
@@ -128,10 +133,12 @@
         page++
 
         try {
-            const newVideos = await LoadVideos({ page: page, limit: parseInt(perPage) })
+            const newVideos = await LoadVideos(page, parseInt(perPage))
             videos.set([...$videos, ...newVideos])
         } catch (error) {
-            toastStore.error('Failed to load next page', error)
+            toastStore.error({
+                title: ''
+            })
         } finally {
             loading = false
         }
@@ -178,7 +185,7 @@
                 </div>
             </div>
             <div class="col-lg-3 col-md-3 col-sm-6">
-                <select class="form-select" bind:value={sortBy}>
+                <select class="form-select" bind:value={sortBy} disabled>
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
                     <option value="az">Name A-Z</option>

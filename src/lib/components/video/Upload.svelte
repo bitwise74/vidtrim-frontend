@@ -1,5 +1,17 @@
 <script lang="ts">
-    let { onVideoSelect, selectedVideo, onClear } = $props()
+    let {
+        onVideoSelect,
+        videoSelected = false,
+        videoName,
+        videoSize,
+        onClear
+    }: {
+        onVideoSelect?: (f: File) => void
+        onClear: () => void
+        videoSelected: boolean
+        videoName?: string
+        videoSize?: number
+    } = $props()
     let isDragOver = $state(false)
 
     function handleDrop(e: DragEvent) {
@@ -10,7 +22,7 @@
         const videoFile = files.find((file) => file.type.startsWith('video/'))
 
         if (videoFile) {
-            onVideoSelect(videoFile)
+            onVideoSelect?.(videoFile)
         }
     }
 
@@ -27,21 +39,21 @@
     function handleFileSelect(e: Event) {
         const file = e.target!.files?.[0]
         if (file && file.type.startsWith('video/')) {
-            onVideoSelect(file)
+            onVideoSelect?.(file)
         }
     }
 </script>
 
-{#if selectedVideo}
+{#if videoSelected}
     <div class="card border-success bg-success bg-opacity-10">
         <div class="card-body p-4">
             <div class="d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
                     <i class="bi bi-file-earmark-play text-success fs-2 me-3"></i>
                     <div>
-                        <p class="fw-medium text-success mb-1">{selectedVideo.name}</p>
+                        <p class="fw-medium text-success mb-1">{videoName}</p>
                         <p class="small text-success mb-0">
-                            {(selectedVideo.size / (1024 * 1024)).toFixed(2)} MB
+                            {videoSize} MB
                         </p>
                     </div>
                 </div>

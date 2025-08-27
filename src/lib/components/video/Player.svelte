@@ -1,18 +1,19 @@
 <script lang="ts">
     import { currentTime } from '$lib/stores/VideoStore'
-    import { onMount } from 'svelte'
     import RangeSlider from 'svelte-range-slider-pips'
 
     let {
         src,
+        duration,
         trimStart,
         trimEnd,
         onTimeUpdate
     }: {
         src: string
+        duration: number
         trimStart: number
         trimEnd: number
-        onTimeUpdate: (current: number, duration: number) => void
+        onTimeUpdate: (video: HTMLVideoElement) => void
     } = $props()
 
     let video: HTMLVideoElement
@@ -20,34 +21,8 @@
     let isPlaying = $state(false)
     let isMuted = $state(false)
     let volume = $state(0.75)
-    let duration = $state(0)
 
-    onMount(() => {
-        if (!video) return
-
-        const handleTimeUpdate = () => {
-            currentTime.set(video.currentTime)
-            onTimeUpdate(video.currentTime, video.duration)
-
-            if (video.currentTime >= trimEnd) {
-                video.pause()
-            }
-        }
-
-        const handleLoadedMetadata = () => {
-            duration = video.duration
-
-            if (trimStart > 0) video.currentTime = trimStart
-        }
-
-        video.addEventListener('timeupdate', handleTimeUpdate)
-        video.addEventListener('loadedmetadata', handleLoadedMetadata)
-
-        return () => {
-            video?.removeEventListener('timeupdate', handleTimeUpdate)
-            video?.removeEventListener('loadedmetadata', handleLoadedMetadata)
-        }
-    })
+    let wasPaused = false
 
     function togglePlay() {
         if (video.currentTime >= trimEnd && trimEnd > trimStart) {
@@ -58,11 +33,21 @@
         video.paused ? video.play() : video.pause()
     }
 
-    function handleSeek(e: CustomEvent<{ value: number }>) {
-        const maxTime = duration
-        const newTime = Math.max(trimStart, Math.min(e.detail.value, maxTime))
-        video.currentTime = newTime
-        currentTime.set(newTime)
+    function handleSeekStart() {
+        if (!video.paused) {
+            wasPaused = true
+            video.pause()
+        }
+    }
+
+    function handleSeekStop(e: CustomEvent<{ value: number }>) {
+        video.currentTime = e.detail.value
+        currentTime.set(e.detail.value)
+
+        if (wasPaused) {
+            video.play()
+            wasPaused = false
+        }
     }
 
     function handleVolumeChange(e: Event) {
@@ -94,14 +79,15 @@
     <div class="position-relative aspect-video bg-dark rounded overflow-hidden mb-3">
         <video
             bind:this={video}
-            {volume}
             bind:currentTime={$currentTime}
             {src}
             class="w-100 h-100"
             style="object-fit: contain;"
             onclick={togglePlay}
             onplay={() => (isPlaying = true)}
-            onpause={() => (isPlaying = false)}>
+            onpause={() => (isPlaying = false)}
+            ontimeupdate={() => onTimeUpdate(video)}
+            >
             <track kind="captions" />
         </video>
     </div>
@@ -109,12 +95,14 @@
     <div>
         <div class="mb-3">
             <RangeSlider
+                spring={false}
                 limits={[trimStart, trimEnd]}
                 max={duration}
-                step={0.01}
+                step={0.05}
                 value={$currentTime}
                 formatter={formatTime}
-                on:change={(e: CustomEvent<{ value: number }>) => handleSeek(e)} />
+                on:start={() => handleSeekStart()}
+                on:stop={(e) => handleSeekStop(e)} />
             <div class="d-flex justify-content-between small text-muted">
                 <span>{formatTime($currentTime)}</span>
                 <span>{formatTime(duration)}</span>
@@ -143,7 +131,7 @@
                         style="width: 80px;"
                         min="0"
                         max="1"
-                        step="0.1"
+                        step="0.01"
                         value={volume}
                         oninput={handleVolumeChange} />
                 </div>

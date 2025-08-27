@@ -10,11 +10,11 @@ export type UserStats = {
 }
 
 export interface InitialData {
-        Videos: Video[]
-        Stats: UserStats
+        videos: Video[]
+        stats: UserStats
 }
 
-export async function LoadInitalData(): Promise<InitialData> {
+export async function LoadInitialData(): Promise<InitialData> {
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/users`, {
                 method: "GET",
                 credentials: "include"
@@ -25,4 +25,15 @@ export async function LoadInitalData(): Promise<InitialData> {
         // Only possible codes are 200 and 500
         if (resp.status !== 200) throw new Error(body.error)
         return body
+}
+
+// TODO: finish
+export async function VerifyUser(userID: string, token: string) {
+        const resp = await fetch(`${PUBLIC_BASE_URL}/api/users/${userID}/verify`, {
+                method: "POST",
+                credentials: "include",
+                body: JSON.stringify({ "token": token })
+        })
+
+        
 }

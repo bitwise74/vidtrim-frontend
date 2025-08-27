@@ -2,7 +2,7 @@
     import { PUBLIC_CDN_URL } from '$env/static/public'
     import type { Video } from '$lib/api/Files'
     import { currentVideoURL } from '$lib/stores/VideoStore'
-    import VideoDropdown from './VideoDropdown.svelte'
+    import VideoDropdown from './Dropdown.svelte'
 
     let { video }: { video: Video } = $props()
 
@@ -36,6 +36,13 @@
             day: 'numeric'
         })
     }
+
+//     const tags = {
+//         tf2: '#495544',
+//         games: '#954951'
+//     }
+
+//     const vidTags = ['tf2', 'games']
 </script>
 
 <div class="col-sm-6 col-lg-4 col-xl-3 mb-3">
@@ -53,7 +60,6 @@
                 </div>
                 <div class="position-absolute bottom-0 end-0 m-2">
                     <span class="badge bg-dark">Processing...</span>
-
                 </div>
             {:else}
                 <img
@@ -66,8 +72,7 @@
                     style="background: rgba(0,0,0,0.3);">
                     <button
                         class="btn bg-black btn-sm text-white"
-                        onclick={() =>
-                            currentVideoURL.set(`${PUBLIC_CDN_URL}/${video.file_key}`)}
+                        onclick={() => currentVideoURL.set(`${PUBLIC_CDN_URL}/${video.file_key}`)}
                         aria-label="Play video">
                         <i class="bi bi-play-fill me-1"></i>Play
                     </button>
@@ -81,13 +86,13 @@
 
         <div class="card-body p-3">
             <div class="d-flex align-items-start justify-content-between mb-2">
-                <h6 class="card-title mb-0 line-clamp-2 flex-grow-1 overflow-hidden pe-2">
-                    {video.name}
+                <h6 class="card-title flex-grow-1 overflow-hidden pe-3">
+                    {video.name.substr(0, video.name.length-4)}
                 </h6>
-                <VideoDropdown fileKey={video.file_key}/>
+                <VideoDropdown fileKey={video.file_key} />
             </div>
 
-            <div class="d-flex align-items-center justify-content-between small text-muted mb-2">
+            <div class="d-flex align-items-center justify-content-between small text-muted">
                 <span>{formatDate(video.created_at)}</span>
                 <span class="badge bg-dark p-2">{video.format.toUpperCase().slice(6)}</span>
             </div>
@@ -96,6 +101,21 @@
                 <span>{formatSize(video.size)}</span>
                 <span>{video.views} views</span>
             </div>
+
+            <!-- {#if vidTags.length > 0}
+                <div class="mt-3 d-flex flex-wrap gap-1" id="tags">
+                    {#each vidTags as t}
+                        <span
+                            class="badge rounded-pill d-flex align-items-center gap-1"
+                            style="background-color: {tags[
+                                t
+                            ]}; color: #fff; font-size: 0.75rem; padding: 0.25em 0.5em;">
+                            <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i>
+                            {t}
+                        </span>
+                    {/each}
+                </div>
+            {/if} -->
         </div>
     </div>
 </div>

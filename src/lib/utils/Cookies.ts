@@ -1,4 +1,6 @@
 export const getCookie = (cname: string) => {
+        if (typeof document == 'undefined') return null
+
         let name = cname + '='
         let decodedCookie = decodeURIComponent(document.cookie)
         let ca = decodedCookie.split(';')

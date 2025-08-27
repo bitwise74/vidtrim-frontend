@@ -1,41 +1,42 @@
+import { goto } from '$app/navigation'
 import { PUBLIC_BASE_URL } from '$env/static/public'
+
+export enum TokenValidationResult {
+        "VALID",
+        "INVALID",
+        "NOT_VERIFIED"
+}
 
 export interface AuthForm {
         password: string
         email: string
 }
 
-interface Response {
-        requestID: string
-        error: string
-}
-
 export async function Login(form: AuthForm) {
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/users/login`, {
                 method: "POST",
+                credentials: "include",
                 body: JSON.stringify(form),
                 headers: {
-                        "Content-Type": "application/json",
-                },
-                credentials: "include"
+                        "Content-Type": "application/json"
+                }
         })
 
-        if (resp.status === 200) return
+        const body = await resp.json()
 
-        const body: Response = await resp.json()
+        if (!body.verified) {
+                goto("/verify")
+                return
+        }
 
-        console.error(`[${body.requestID}] Login request failed: ${body.error}`)
-
-        switch (resp.status) {
-                case 400: throw new Error("Form is invalid")
-                case 401: throw new Error("Email or password invalid")
-                case 404: throw new Error("User with this e-mail address doesn't exist. Please register first")
-                case 429: throw new Error("You are being rate limited")
-                default: throw new Error("Something went wrong, please check the console for more information")
+        if (body.error) {
+                switch (body.error) {
+                        default: throw new Error(body.error)
+                }
         }
 }
 
-export async function Register(form: AuthForm) {
+export async function Register(form: AuthForm): Promise<string> {
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/users`, {
                 method: "POST",
                 body: JSON.stringify(form),
@@ -44,26 +45,34 @@ export async function Register(form: AuthForm) {
                 }
         })
 
-        if (resp.status === 200) return
 
-        const body: Response = await resp.json()
+        const body = await resp.json()
+        if (resp.status === 200) return body.userID
 
         console.error(`[${body.requestID}] Login request failed: ${body.error}`)
-
-        switch (resp.status) {
-                case 400: throw new Error(body.error)
-                case 401: throw new Error("Email or password invalid")
-                case 409: throw new Error("User with this e-mail address already exists. Please log in")
-                case 429: throw new Error("You are being rate limited")
-                default: throw new Error(`Something went wrong, please check the console for more information`)
-        }
+        throw new Error(body.error)
 }
 
-export async function ValidateToken(): Promise<boolean> {
+export async function ValidateToken(): Promise<TokenValidationResult> {
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/validate`, {
-                method: "HEAD",
+                method: "GET",
                 credentials: 'include'
         })
 
-        return resp.status === 200
+        if (resp.status === 200) return TokenValidationResult.VALID
+
+        const body = await resp.json()
+
+        switch (body.error) {
+                case "account_not_verified": {
+                        return TokenValidationResult.NOT_VERIFIED
+                }
+
+                case "token_invalid":
+                case "token_expired": {
+                        return TokenValidationResult.INVALID
+                }
+
+                default: throw new Error(body.error)
+        }
 }

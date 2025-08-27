@@ -4,37 +4,41 @@
     import { writable } from 'svelte/store'
     import { toastStore } from './toast/toastStore'
 
-    const showPassword = writable(false);
-    const isLoading = writable(false);
-    const formData = writable({ email: '', password: '' } as { [key: string]: any });
+    const showPassword = writable(false)
+    const isLoading = writable(false)
+    const formData = writable({ email: '', password: '' } as { [key: string]: any })
 
     async function handleSubmit(e: Event) {
-        e.preventDefault();
-        isLoading.set(true);
+        e.preventDefault()
+        isLoading.set(true)
 
-        const { email, password } = $formData;
+        const { email, password } = $formData
 
         try {
             if (!email || !password) {
-                throw new Error('Please fill in all fields');
+                throw new Error('Please fill in all fields')
             }
 
             if (!email.includes('@')) {
-                throw new Error('Please enter a valid email address');
+                throw new Error('Please enter a valid email address')
             }
 
-            await Login({ email, password });
-            goto('/dashboard');
+            await Login({ email, password })
+            goto('/dashboard')
         } catch (err) {
-                toastStore.error("Failed to login", err.message)
+            toastStore.error({
+                title: 'Failed to login',
+                message: 'Check the console for details',
+                duration: 10000
+            })
         } finally {
-            isLoading.set(false);
+            isLoading.set(false)
         }
     }
 
     function handleInputChange(field: string, e: Event) {
-        const value = (e.target as HTMLInputElement).value;
-        formData.update((data) => ({ ...data, [field]: value }));
+        const value = (e.target as HTMLInputElement).value
+        formData.update((data) => ({ ...data, [field]: value }))
     }
 </script>
 
@@ -57,8 +61,7 @@
                         id="email"
                         placeholder="Enter your email"
                         bind:value={$formData.email}
-                        oninput={(e) => handleInputChange('email', e)}
-                    />
+                        oninput={(e) => handleInputChange('email', e)} />
                 </div>
             </div>
 
@@ -75,14 +78,12 @@
                         placeholder="Enter your password"
                         bind:value={$formData.password}
                         oninput={(e) => handleInputChange('password', e)}
-                        required
-                    />
+                        required />
                     <button
                         type="button"
                         class="btn btn-outline-secondary"
                         onclick={() => showPassword.set(!$showPassword)}
-                        aria-label="Toggle password visibility"
-                    >
+                        aria-label="Toggle password visibility">
                         <i class="bi bi-eye{$showPassword ? '-slash' : ''}"></i>
                     </button>
                 </div>
@@ -109,8 +110,7 @@
                 <div class="position-relative">
                     <hr />
                     <span
-                        class="position-absolute top-50 start-50 translate-middle bg-white px-3 small text-muted"
-                    >
+                        class="position-absolute top-50 start-50 translate-middle bg-white px-3 small text-muted">
                         Or continue with (coming soon)
                     </span>
                 </div>
@@ -122,8 +122,7 @@
                         type="button"
                         class="btn btn-outline-secondary w-100"
                         aria-label="Sign in with Google"
-                        disabled
-                    >
+                        disabled>
                         <i class="bi bi-google me-1"></i>
                         Google
                     </button>
@@ -133,8 +132,7 @@
                         type="button"
                         class="btn btn-outline-secondary w-100"
                         aria-label="Sign in with GitHub"
-                        disabled
-                    >
+                        disabled>
                         <i class="bi bi-github me-1"></i>
                         GitHub
                     </button>

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { currentVideoURL, videos } from '$lib/stores/VideoStore'
-    import VideoCard from './VideoCard.svelte'
+    import VideoCard from './Card.svelte'
 </script>
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Toast } from './toastStore'
+  import { toastStore, type Toast } from './toastStore'
 
-  let { toast, dismiss }: { toast: Toast, dismiss: () => void } = $props();
+  let { toast }: { toast: Toast } = $props();
   let isLeaving = $state(false);
 
   function getToastIcon(type: string) {
@@ -23,15 +23,6 @@
       default: return 'black';
     }
   }
-
-  function startDismiss() {
-    isLeaving = true;
-    setTimeout(() => {
-      dismiss();
-    }, 1500);
-  }
-
-  setTimeout(startDismiss, 5000);
 </script>
 
 <div
@@ -55,11 +46,11 @@
         type="button"
         class="btn-close btn-close-dark me-2 m-auto"
         aria-label="Close"
-        onclick={startDismiss}
+        onclick={() => toastStore.remove(toast.id)}
       ></button>
     {/if}
   </div>
-  <div class="toast-progress bg-{getToastColor(toast.type)}"></div>
+  <div style="--toast-duration:{toast.duration}ms;" class="toast-progress bg-{getToastColor(toast.type)}"></div>
 </div>
 
 <style>
@@ -73,7 +64,7 @@
   /* Entrance animation */
   @keyframes slidefade-in {
     from {
-      transform: translateY(10%);
+      transform: translateY(30%);
       opacity: 0;
     }
     to {
@@ -89,7 +80,7 @@
       opacity: 1;
     }
     to {
-      transform: translateY(10%);
+      transform: translateY(30%);
       opacity: 0;
     }
   }
@@ -109,7 +100,7 @@
     left: 0;
     height: 3px;
     background-color: rgba(255, 255, 255, 0.8);
-    animation: progress-bar 5s linear forwards;
+    animation: progress-bar var(--toast-duration, 5000ms) linear forwards;
   }
 
   @keyframes progress-bar {
