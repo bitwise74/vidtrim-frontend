@@ -25,7 +25,7 @@ export interface ProcessingOpts {
         targetSize: number
         trimStart: number
         trimEnd: number
-        processingSpeed: string
+        losslessExport: boolean
         fps: number
         format: string
         saveToCloud: boolean
@@ -51,7 +51,6 @@ export async function LoadVideos(page: number, limit: number): Promise<Video[]> 
         })
 
         const body = await resp.json()
-
         if (resp.status === 200) return body
 
         console.error(`[${body.requestID}] LoadVideos request failed: ${body.error}`)
@@ -117,6 +116,7 @@ export async function OwnsVideo(videoID: number | string): Promise<boolean> {
 }
 
 export async function UpdateVideo(videoID: number | string, opts: UpdateVideoOpts): Promise<Video | undefined> {
+
         if (opts.processing_options) {
                 // Get job ID
                 const jobIDResp = await fetch(`${PUBLIC_BASE_URL}/api/ffmpeg/start`, {
@@ -132,6 +132,7 @@ export async function UpdateVideo(videoID: number | string, opts: UpdateVideoOpt
                 }
 
                 const jobID = (await jobIDResp.json()).jobID
+
                 const source = new EventSource(`${PUBLIC_BASE_URL}/api/ffmpeg/progress?jobID=${jobID}`, {
                         withCredentials: true
                 })
@@ -162,7 +163,7 @@ export async function UpdateVideo(videoID: number | string, opts: UpdateVideoOpt
 }
 
 export async function ExportVideo(o: ExportOpts, token: string) {
-        const { trimStart, trimEnd, targetSize, processingSpeed, saveToCloud } = o.processingOpts
+        const { trimStart, trimEnd, targetSize, losslessExport, saveToCloud } = o.processingOpts
 
         const form = new FormData()
         form.append("file", o.file)
@@ -172,7 +173,7 @@ export async function ExportVideo(o: ExportOpts, token: string) {
         if (targetSize > 0) form.append("targetSize", `${targetSize}`)
         if (saveToCloud) form.append("saveToCloud", `${saveToCloud}`)
 
-        form.append("processingSpeed", `${processingSpeed}`)
+        form.append("losslessExport", `${losslessExport}`)
 
         // Get job ID
         const jobIDResp = await fetch(`${PUBLIC_BASE_URL}/api/ffmpeg/start`, {
@@ -188,7 +189,8 @@ export async function ExportVideo(o: ExportOpts, token: string) {
         }
 
         const jobID = (await jobIDResp.json()).jobID
-        const source = new EventSource(`${PUBLIC_BASE_URL}/api/ffmpeg/progress?jobID=${jobID}`, {
+
+        const source = new EventSource(`${PUBLIC_BASE_URL}/api/ffmpeg/progress`, {
                 withCredentials: true
         })
 

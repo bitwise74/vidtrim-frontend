@@ -13,6 +13,7 @@ export interface AuthForm {
 }
 
 export async function Login(form: AuthForm) {
+        console.log("attemping to")
         const resp = await fetch(`${PUBLIC_BASE_URL}/api/users/login`, {
                 method: "POST",
                 credentials: "include",
@@ -22,18 +23,17 @@ export async function Login(form: AuthForm) {
                 }
         })
 
+        if (resp.ok) return
+
         const body = await resp.json()
 
-        if (!body.verified) {
+        // fuck javascript
+        if (body.verified === false) {
                 goto("/verify")
                 return
         }
 
-        if (body.error) {
-                switch (body.error) {
-                        default: throw new Error(body.error)
-                }
-        }
+        throw new Error(body.error)
 }
 
 export async function Register(form: AuthForm): Promise<string> {

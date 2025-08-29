@@ -43,53 +43,63 @@
             {
                 text: 'Upload Video',
                 action: () => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'video/*';
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'video/*'
 
-                        input.onchange = async (e: Event) => {
-                                const target = e.target as HTMLInputElement;
-                                if (!target.files || target.files.length === 0) return;
+                    input.onchange = async (e: Event) => {
+                        const target = e.target as HTMLInputElement
+                        if (!target.files || target.files.length === 0) return
 
-                                const videoFile = Array.from(target.files).find((f) => ["video/mp4", "video/quicktime", "video/x-matroska"].includes(f.type));
-                                if (!videoFile) {
-                                        toastStore.error({
-                                                title: 'No valid files detected',
-                                                message: 'Please use one of the supported formats (mp4, mov, mkv)',
-                                                duration: 10000
-                                        });
-                                        return;
-                                }
+                        const videoFile = Array.from(target.files).find((f) =>
+                            ['video/mp4', 'video/quicktime', 'video/x-matroska'].includes(f.type)
+                        )
+                        if (!videoFile) {
+                            toastStore.error({
+                                title: 'No valid files detected',
+                                message: 'Please use one of the supported formats (mp4, mov, mkv)',
+                                duration: 10000
+                            })
+                            return
+                        }
 
-                                videos.set([
-                                        {
-                                                name: videoFile.name,
-                                                size: videoFile.size,
-                                                format: videoFile.type,
-                                                created_at: Date.now()/1000,
-                                                state: 'processing'
-                                        } as Video,
-                                        ...$videos
-                                ]);
+                        if (videoFile.type === 'video/x-matroska') {
+                            toastStore.info({
+                                title: '.mkv file detected',
+                                message: 'These files usually take longer to process',
+                                duration: 10000
+                            })
+                        }
 
-                                try {
-                                        const newVid = await UploadVideo(videoFile);
-                                        if (!newVid) return;
+                        videos.set([
+                            {
+                                name: videoFile.name,
+                                size: videoFile.size,
+                                format: videoFile.type,
+                                created_at: Date.now() / 1000,
+                                state: 'processing'
+                            } as Video,
+                            ...$videos
+                        ])
 
-                                        videos.set([newVid, ...$videos.slice(1)]);
-                                } catch (error) {
-                                        // Remove processing vid if failed
-                                        videos.set([...$videos.slice(1)]);
-                                        toastStore.error({
-                                                title: 'Failed to save video to cloud',
-                                                message: 'Check the console for details',
-                                                duration: 10000
-                                        });
-                                        console.error('POST /API/FILES', error);
-                                }
-                        };
+                        try {
+                            const newVid = await UploadVideo(videoFile)
+                            if (!newVid) return
 
-                        input.click();
+                            videos.set([newVid, ...$videos.slice(1)])
+                        } catch (error) {
+                            // Remove processing vid if failed
+                            videos.set([...$videos.slice(1)])
+                            toastStore.error({
+                                title: 'Failed to save video to cloud',
+                                message: error.message,
+                                duration: 10000
+                            })
+                            console.error('POST /API/FILES', error)
+                        }
+                    }
+
+                    input.click()
                 },
                 icon: 'bi-upload',
                 class: 'btn-outline-dark'

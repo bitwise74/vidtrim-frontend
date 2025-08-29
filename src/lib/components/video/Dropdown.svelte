@@ -96,7 +96,7 @@
         } catch (err) {
             toastStore.error({
                 title: 'Failed to rename video',
-                message: 'Check the console for details',
+                message: err.message,
                 duration: 10000
             })
             console.error(err)

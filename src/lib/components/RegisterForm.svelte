@@ -56,7 +56,7 @@
         } catch (err) {
             toastStore.error({
                 title: 'Failed to register account',
-                message: 'Check the console for details',
+                message: err.message,
                 duration: 10000
             })
         } finally {

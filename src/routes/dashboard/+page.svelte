@@ -39,7 +39,7 @@
         } catch (error) {
             toastStore.error({
                 title: 'Failed to load dashboard',
-                message: 'Check the console for more details',
+                message: error.message,
                 duration: 10000
             })
             console.error('GET API/USERS: Failed to load initial data', error)
@@ -98,6 +98,14 @@
             return
         }
 
+        if (videoFile.type === "video/x-matroska") {
+                toastStore.info({
+                        title: ".mkv file detected",
+                        message: "These files usually take longer to process",
+                        duration: 10000
+                })
+        }
+
         videos.set([
             {
                 name: videoFile.name,
@@ -119,10 +127,9 @@
             videos.set([...$videos.splice(1)])
             toastStore.error({
                 title: 'Failed to save video to cloud',
-                message: 'Check the console for details',
+                message: error.message,
                 duration: 10000
             })
-            console.error('POST /API/FILES', error)
         }
     }
 
@@ -137,7 +144,8 @@
             videos.set([...$videos, ...newVideos])
         } catch (error) {
             toastStore.error({
-                title: ''
+                title: 'Failed to load more content',
+                message: error.message
             })
         } finally {
             loading = false

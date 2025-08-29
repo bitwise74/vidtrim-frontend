@@ -29,14 +29,15 @@
     let isExporting = $state(false)
     let isSaving = $state(false)
     let isEditing = $state(false)
+    let isCompressingDisabled = $state(false)
 
     // Export options
     let targetSize: number = $state(0)
     let trimStart: number = $state(0)
     let trimEnd: number = $state(0)
-    let processingSpeed = $state('superfast')
     let exportFormat = $state('mp4')
     let exportFps = $state("Don't change")
+    let losslessExport = $state(false)
 
     // Other things needed
     let isLoggedIn = $state(false)
@@ -75,20 +76,20 @@
         })
 
         if (!owns) {
-                toastStore.error({
-                        title: "You don't own this video",
-                        duration: 10000
-                })
-                return
+            toastStore.error({
+                title: "You don't own this video",
+                duration: 10000
+            })
+            return
         }
 
         isEditing = true
-        
+
         // Load video if logged in and owns video
         const videoData = await LoadVideo(videoID).catch((err) => {
             toastStore.error({
                 title: 'Failed to load video',
-                message: 'Check the console for details'
+                message: err.message
             })
             console.error(err)
         })
@@ -115,22 +116,34 @@
         // to the server for a file in the S3 server.
         selectedVideo = f
 
-        if (f.type === "video/x-matroska") {
-                toastStore.warning({
-                        title: ".mkv file detected",
-                        message: "Due to limitations from the browser playback of .mkv files doesn't work. Your settings will still apply to them and they'll be converted to mp4 files upon export/upload, but you won't be able to preview them here. Some settings may be entirely broken.",
-                        duration: 20000
-                })
+        if (f.type !== 'video/mp4') {
+            toastStore.warning({
+                title: 'Video will be remuxed',
+                message:
+                    'Files other than mp4 are not officially supported. Editing tools should work fine, but the video itself will be remuxed into an mp4 file',
+                duration: 30000
+            })
+        }
 
-                toastStore.info({
-                        title: "Possible solution",
-                        message: "Upload your video to the dashboard first to convert it into an mp4 file, then click on it's dropdown menu and choose 'edit'",
-                        duration: 20000
-                })
+        if (f.type === 'video/x-matroska') {
+            toastStore.warning({
+                title: '.mkv file detected',
+                message:
+                    "Due to limitations from the browser playback of .mkv files doesn't work. Your settings will still apply to them and they'll be converted to mp4 files upon export/upload, but you won't be able to preview them here. Some settings may be entirely broken.",
+                duration: 30000
+            })
+
+            toastStore.info({
+                title: 'Possible solution',
+                message:
+                    "Upload your video to the dashboard first to convert it into an mp4 file, then click on it's dropdown menu and choose 'edit'",
+                duration: 30000
+            })
         }
 
         videoSize = parseFloat((f.size / (1024 * 1024)).toFixed(2))
         videoName = f.name
+        isCompressingDisabled = videoSize < 5
 
         const video = document.createElement('video')
 
@@ -184,7 +197,7 @@
                         processingOpts: {
                             format: exportFormat,
                             fps: parseInt(exportFps),
-                            processingSpeed,
+                            losslessExport,
                             targetSize,
                             trimEnd,
                             trimStart,
@@ -202,7 +215,7 @@
                     processing_options: {
                         format: exportFormat,
                         fps: parseInt(exportFps),
-                        processingSpeed,
+                        losslessExport,
                         trimEnd,
                         trimStart,
                         targetSize,
@@ -215,7 +228,7 @@
         } catch (error) {
             toastStore.error({
                 title: 'Failed to edit video',
-                message: 'Check the console for details',
+                message: error.message,
                 duration: 10000
             })
         } finally {
@@ -242,7 +255,7 @@
                     processingOpts: {
                         format: exportFormat,
                         fps: parseInt(exportFps),
-                        processingSpeed,
+                        losslessExport,
                         targetSize,
                         trimEnd,
                         trimStart,
@@ -255,7 +268,7 @@
         } catch (error) {
             toastStore.error({
                 title: 'Failed to save video to cloud',
-                message: 'Check the console for details',
+                message: error.message,
                 duration: 10000
             })
             console.error(error)
@@ -464,7 +477,7 @@
                                             float
                                             range
                                             draggy={true}
-                                            on:change={handleTrimChange}
+                                            on:stop={handleTrimChange}
                                             formatter={formatTime}
                                             style="--range-range: #1463DA">
                                         </RangeSlider>
@@ -496,7 +509,9 @@
                                 <!-- Compress Tab -->
                                 <div class="tab-pane" id="compress-tab">
                                     <div class="mb-3">
-                                        <label for="target-size">
+                                        <label
+                                            for="target-size"
+                                            class={isCompressingDisabled ? 'text-muted' : ''}>
                                             Target Size:
                                             {#if targetSize <= 0 || targetSize >= videoSize}
                                                 Not set
@@ -521,6 +536,7 @@
                                         <RangeSlider
                                             spring={false}
                                             value={0}
+                                            disabled={isCompressingDisabled}
                                             min={0}
                                             max={videoSize}
                                             step={1}
@@ -537,22 +553,17 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label" for="processing-speed"
-                                            >Processing Speed</label>
+                                            >Other processing options</label>
                                         <p class="small text-muted">
-                                            Slower processing will give you a better quality. Faster
-                                            processing may result in file sizes inaccurate to the
-                                            requested target size (just decrease it a bit more)
+                                            Lossless exports produce a better video quality, but take longer to finish and don't optimize the video size.
                                         </p>
-                                        <select
-                                            class="form-select"
-                                            id="processing-speed"
-                                            bind:value={processingSpeed}>
-                                            <option value="ultrafast">Fastest</option>
-                                            <option value="superfast">Faster</option>
-                                            <option value="faster">Fast</option>
-                                            <option value="fast">Normal</option>
-                                            <option value="medium">Slower</option>
-                                        </select>
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            id="losslessExport"
+                                            bind:checked={losslessExport} />
+                                        <label class="form-check-label small" for="losslessExport"
+                                            >Lossless export</label>
                                     </div>
                                 </div>
 
@@ -566,6 +577,7 @@
                                         <select
                                             class="form-select"
                                             id="export-format"
+                                            disabled
                                             bind:value={exportFormat}>
                                             <option value="mp4">mp4</option>
                                             <option value="mov">mov</option>
@@ -584,6 +596,7 @@
                                         <select
                                             class="form-select"
                                             id="export-framerate"
+                                            disabled
                                             bind:value={exportFps}>
                                             <option value="Don't change">Don't change</option>
                                             <option value="60">60</option>

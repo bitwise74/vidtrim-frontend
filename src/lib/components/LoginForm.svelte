@@ -26,9 +26,10 @@
             await Login({ email, password })
             goto('/dashboard')
         } catch (err) {
+                console.error("Failed to login", err)
             toastStore.error({
                 title: 'Failed to login',
-                message: 'Check the console for details',
+                message: err,
                 duration: 10000
             })
         } finally {
