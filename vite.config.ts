@@ -2,6 +2,16 @@ import { sveltekit } from '@sveltejs/kit/vite'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+        build: {
+                sourcemap: false,
+                minify: 'terser',
+                terserOptions: {
+                        compress: {
+                                drop_console: true,
+                                drop_debugger: true
+                        }
+                }      
+        },
         plugins: [sveltekit()],
         resolve: {
                 alias: {
@@ -9,6 +19,7 @@ export default defineConfig({
                 },
         },
         server: {
+                open: true,
 		headers: {
 		  'Cross-Origin-Opener-Policy': 'same-origin',
 		  'Cross-Origin-Embedder-Policy': 'require-corp'
@@ -18,5 +29,3 @@ export default defineConfig({
 		}
 	  }	
 })
-
-
